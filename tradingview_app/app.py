@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import duckdb
-import pandas as pd
 import os
 from datetime import datetime
 

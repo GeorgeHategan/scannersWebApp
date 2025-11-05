@@ -6,7 +6,7 @@ services:
     plan: free
     buildCommand: |
       pip install --upgrade pip
-      pip install -r requirements.txt
+      pip install --no-cache-dir -r requirements.txt
     startCommand: python start.py
     envVars:
       - key: PYTHON_VERSION
@@ -15,5 +15,7 @@ services:
         value: ./taq_data.duckdb
       - key: PYTHONPATH
         value: /opt/render/project/src
+      - key: PIP_NO_BUILD_ISOLATION
+        value: "true"
     autoDeploy: true
     healthCheckPath: /test
