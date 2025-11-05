@@ -196,8 +196,10 @@ def get_spread_data(symbol: str):
             time_str = row["TimeBarStart"]
             date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            # Use the actual date from the database
-            year, month, day = map(int, date_val.split('-'))
+            # Convert integer date (YYYYMMDD) to year, month, day
+            year = date_val // 10000
+            month = (date_val % 10000) // 100
+            day = date_val % 100
             dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
@@ -257,7 +259,10 @@ def get_indicators(symbol: str):
             time_str = row["TimeBarStart"]
             date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            year, month, day = map(int, date_val.split('-'))
+            # Convert integer date (YYYYMMDD) to year, month, day
+            year = date_val // 10000
+            month = (date_val % 10000) // 100
+            day = date_val % 100
             dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
@@ -312,7 +317,10 @@ def get_volume_data(symbol: str):
             time_str = row["TimeBarStart"]
             date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            year, month, day = map(int, date_val.split('-'))
+            # Convert integer date (YYYYMMDD) to year, month, day
+            year = date_val // 10000
+            month = (date_val % 10000) // 100
+            day = date_val % 100
             dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
@@ -367,7 +375,10 @@ def get_liquidity_data(symbol: str):
             time_str = row["TimeBarStart"]
             date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            year, month, day = map(int, date_val.split('-'))
+            # Convert integer date (YYYYMMDD) to year, month, day
+            year = date_val // 10000
+            month = (date_val % 10000) // 100
+            day = date_val % 100
             dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
@@ -423,7 +434,10 @@ def get_flow_data(symbol: str):
             time_str = row["TimeBarStart"]
             date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            year, month, day = map(int, date_val.split('-'))
+            # Convert integer date (YYYYMMDD) to year, month, day
+            year = date_val // 10000
+            month = (date_val % 10000) // 100
+            day = date_val % 100
             dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
