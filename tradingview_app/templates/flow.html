@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Flow Analysis - Scanner WebApp</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #0f0f23; 
+            color: white; 
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .nav-button {
+            background: #1a1a3e;
+            color: #00d4aa;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 5px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+        }
+        .nav-button:hover { background: #2a2a4e; }
+        .nav-button.active { background: #00BCD4; color: white; }
+        .chart-container { 
+            background: white; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            height: 500px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #1a1a3e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00BCD4;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Order Flow & Market Impact Analysis</h1>
+    
+    <div class="nav-tabs">
+        <button onclick="window.location.href='/'" class="nav-button">Chart</button>
+        <button onclick="window.location.href='/spread?symbol=AAPL'" class="nav-button">Spread Analysis</button>
+        <button onclick="window.location.href='/vwap?symbol=AAPL'" class="nav-button">VWAP Analysis</button>
+        <button onclick="window.location.href='/volume?symbol=AAPL'" class="nav-button">Volume Analysis</button>
+        <button onclick="window.location.href='/liquidity?symbol=AAPL'" class="nav-button">Liquidity Analysis</button>
+        <button class="nav-button active">Order Flow</button>
+    </div>
+
+    <div class="stats-grid" id="stats-container">
+        <div class="stat-card">
+            <div class="stat-value" id="tape-imbalance">Loading...</div>
+            <div class="stat-label">Tape Imbalance</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="microstructure-strength">Loading...</div>
+            <div class="stat-label">Microstructure Strength</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="order-flow-bias">Loading...</div>
+            <div class="stat-label">Order Flow Bias</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="liquidity-stress">Loading...</div>
+            <div class="stat-label">Liquidity Stress</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="hidden-liquidity">Loading...</div>
+            <div class="stat-label">Hidden Liquidity %</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="market-impact">Loading...</div>
+            <div class="stat-label">Market Impact</div>
+        </div>
+    </div>
+
+    <div class="chart-container" id="flow-chart"></div>
+    <div class="chart-container" id="impact-chart"></div>
+
+    <script>
+        async function loadFlowData() {
+            try {
+                console.log('🔄 Loading order flow data...');
+                const response = await fetch('/api/flow?symbol={{ symbol }}');
+                const data = await response.json();
+                
+                if (data.s !== "ok") {
+                    throw new Error('No order flow data available');
+                }
+
+                // Convert timestamps to dates
+                const dates = data.t.map(timestamp => new Date(timestamp * 1000));
+                
+                // Calculate advanced microstructure statistics
+                const totalBid = data.trade_at_bid.reduce((a, b) => a + b, 0);
+                const totalAsk = data.trade_at_ask.reduce((a, b) => a + b, 0);
+                const totalMid = data.trade_at_mid.reduce((a, b) => a + b, 0);
+                const totalBidMid = data.trade_at_bid_mid.reduce((a, b) => a + b, 0);
+                const totalMidAsk = data.trade_at_mid_ask.reduce((a, b) => a + b, 0);
+                const totalCross = data.trade_at_cross.reduce((a, b) => a + b, 0);
+                const totalAll = totalBid + totalAsk + totalMid + totalBidMid + totalMidAsk + totalCross;
+
+                // Tape Imbalance - Detect accumulation vs distribution (buy/sell pressure)
+                const tapeImbalance = (((totalBid - totalAsk) / (totalBid + totalAsk)) * 100).toFixed(1);
+                
+                // Microstructure Strength - Hidden midpoint executions or passive fills
+                const hiddenLiquidity = (((totalMid + totalBidMid + totalMidAsk) / totalAll) * 100).toFixed(1);
+                const microStrength = ((totalMid / (totalBid + totalAsk + 0.1)) * 100).toFixed(2);
+                
+                // Order Flow Bias - Core metric for market impact
+                const avgOrderFlowBias = (data.trade_to_mid_weight.reduce((a, b) => a + b, 0) / data.trade_to_mid_weight.length).toFixed(3);
+                
+                // Liquidity Stress - Spread compression and microstructural anomalies
+                const liquidityStress = ((totalCross / totalAll) * 100).toFixed(3);
+                
+                // Market Impact - Volume-weighted relative impact
+                const avgMarketImpact = (data.trade_to_mid_relative.reduce((a, b) => Math.abs(a) + Math.abs(b), 0) / data.trade_to_mid_relative.length * 100).toFixed(2);
+
+                // Update statistics
+                document.getElementById('tape-imbalance').textContent = `${tapeImbalance}%`;
+                document.getElementById('microstructure-strength').textContent = microStrength;
+                document.getElementById('order-flow-bias').textContent = avgOrderFlowBias;
+                document.getElementById('liquidity-stress').textContent = `${liquidityStress}%`;
+                document.getElementById('hidden-liquidity').textContent = `${hiddenLiquidity}%`;
+                document.getElementById('market-impact').textContent = `${avgMarketImpact}%`;
+
+                // Create order flow chart
+                const bidTrace = {
+                    x: dates,
+                    y: data.trade_at_bid,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trade at Bid',
+                    line: { color: '#F44336', width: 2 },
+                    stackgroup: 'one'
+                };
+
+                const bidMidTrace = {
+                    x: dates,
+                    y: data.trade_at_bid_mid,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trade at Bid-Mid',
+                    line: { color: '#FF9800', width: 2 },
+                    stackgroup: 'one'
+                };
+
+                const midTrace = {
+                    x: dates,
+                    y: data.trade_at_mid,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trade at Mid',
+                    line: { color: '#FFC107', width: 2 },
+                    stackgroup: 'one'
+                };
+
+                const midAskTrace = {
+                    x: dates,
+                    y: data.trade_at_mid_ask,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trade at Mid-Ask',
+                    line: { color: '#8BC34A', width: 2 },
+                    stackgroup: 'one'
+                };
+
+                const askTrace = {
+                    x: dates,
+                    y: data.trade_at_ask,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trade at Ask',
+                    line: { color: '#4CAF50', width: 2 },
+                    stackgroup: 'one'
+                };
+
+                const flowLayout = {
+                    title: 'Order Flow Distribution',
+                    paper_bgcolor: 'white',
+                    plot_bgcolor: 'white',
+                    font: { color: 'black' },
+                    xaxis: { 
+                        title: 'Time',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis: { 
+                        title: 'Trade Count',
+                        gridcolor: '#e6e6e6'
+                    },
+                    margin: { t: 50, r: 50, b: 50, l: 50 },
+                    hovermode: 'x unified'
+                };
+
+                Plotly.newPlot('flow-chart', [bidTrace, bidMidTrace, midTrace, midAskTrace, askTrace], flowLayout, {responsive: true});
+
+                // Create market impact chart
+                const impactTrace = {
+                    x: dates,
+                    y: data.trade_to_mid_weight,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trade-to-Mid Impact',
+                    line: { color: '#00BCD4', width: 2 }
+                };
+
+                const relativeImpactTrace = {
+                    x: dates,
+                    y: data.trade_to_mid_relative.map(x => x * 100), // Convert to percentage
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Relative Impact %',
+                    line: { color: '#9C27B0', width: 2 },
+                    yaxis: 'y2'
+                };
+
+                const impactLayout = {
+                    title: 'Market Impact Analysis',
+                    paper_bgcolor: 'white',
+                    plot_bgcolor: 'white',
+                    font: { color: 'black' },
+                    xaxis: { 
+                        title: 'Time',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis: { 
+                        title: 'Impact (Volume Weight)',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis2: {
+                        title: 'Relative Impact (%)',
+                        overlaying: 'y',
+                        side: 'right',
+                        gridcolor: '#e6e6e6'
+                    },
+                    margin: { t: 50, r: 70, b: 50, l: 50 },
+                    hovermode: 'x unified'
+                };
+
+                Plotly.newPlot('impact-chart', [impactTrace, relativeImpactTrace], impactLayout, {responsive: true});
+
+                console.log('✅ Order flow analysis loaded successfully');
+                console.log(`📊 Microstructure Metrics:`);
+                console.log(`   Tape Imbalance: ${tapeImbalance}% | Liquidity Stress: ${liquidityStress}%`);
+                console.log(`   Hidden Liquidity: ${hiddenLiquidity}% | Market Impact: ${avgMarketImpact}%`);
+
+            } catch (error) {
+                console.error('❌ Error loading order flow data:', error);
+                document.getElementById('bid-ratio').textContent = 'Error';
+                document.getElementById('ask-ratio').textContent = 'Error';
+                document.getElementById('flow-imbalance').textContent = 'Error';
+                document.getElementById('avg-impact').textContent = 'Error';
+            }
+        }
+
+        // Load data when page loads
+        window.addEventListener('DOMContentLoaded', loadFlowData);
+    </script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquidity Analysis - Scanner WebApp</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #0f0f23; 
+            color: white; 
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .nav-button {
+            background: #1a1a3e;
+            color: #00d4aa;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 5px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+        }
+        .nav-button:hover { background: #2a2a4e; }
+        .nav-button.active { background: #9C27B0; color: white; }
+        .chart-container { 
+            background: white; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            height: 500px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #1a1a3e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #9C27B0;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Liquidity & Market Depth Analysis</h1>
+    
+    <div class="nav-tabs">
+        <button onclick="window.location.href='/'" class="nav-button">Chart</button>
+        <button onclick="window.location.href='/spread?symbol=AAPL'" class="nav-button">Spread Analysis</button>
+        <button onclick="window.location.href='/vwap?symbol=AAPL'" class="nav-button">VWAP Analysis</button>
+        <button onclick="window.location.href='/volume?symbol=AAPL'" class="nav-button">Volume Analysis</button>
+        <button class="nav-button active">Liquidity Analysis</button>
+        <button onclick="window.location.href='/flow?symbol=AAPL'" class="nav-button">Order Flow</button>
+    </div>
+
+    <div class="stats-grid" id="stats-container">
+        <div class="stat-card">
+            <div class="stat-value" id="volatility-intensity">Loading...</div>
+            <div class="stat-label">Volatility Intensity</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="liquidity-risk">Loading...</div>
+            <div class="stat-label">Liquidity Risk</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="quote-pressure">Loading...</div>
+            <div class="stat-label">Quote Pressure</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="size-imbalance">Loading...</div>
+            <div class="stat-label">Size Imbalance</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="depth-stability">Loading...</div>
+            <div class="stat-label">Depth Stability</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="fair-value-dev">Loading...</div>
+            <div class="stat-label">Fair Value Deviation</div>
+        </div>
+    </div>
+
+    <div class="chart-container" id="size-chart"></div>
+    <div class="chart-container" id="quotes-chart"></div>
+
+    <script>
+        async function loadLiquidityData() {
+            try {
+                console.log('🔄 Loading liquidity data...');
+                const response = await fetch('/api/liquidity?symbol={{ symbol }}');
+                const data = await response.json();
+                
+                if (data.s !== "ok") {
+                    throw new Error('No liquidity data available');
+                }
+
+                // Convert timestamps to dates
+                const dates = data.t.map(timestamp => new Date(timestamp * 1000));
+                
+                // Calculate advanced liquidity microstructure statistics
+                const totalQuotes = data.nbbo_quote_count.reduce((a, b) => a + b, 0);
+                const avgQuotes = totalQuotes / data.nbbo_quote_count.length;
+                const totalBidSize = data.open_bid_size.reduce((a, b) => a + b, 0);
+                const totalAskSize = data.open_ask_size.reduce((a, b) => a + b, 0);
+                
+                // Volatility Intensity - Proxy for quote churn and order book pressure
+                const volatilityIntensity = (avgQuotes / 60).toFixed(1); // quotes per minute average
+                
+                // Quote Pressure - Order book pressure intensity
+                const maxQuotes = Math.max(...data.nbbo_quote_count);
+                const quotePressure = ((maxQuotes / avgQuotes) * 100).toFixed(0);
+                
+                // Size Imbalance - Supply/demand dynamics
+                const sizeImbalance = (((totalBidSize - totalAskSize) / (totalBidSize + totalAskSize)) * 100).toFixed(1);
+                
+                // Depth Stability - Consistency of market depth
+                const bidSizeStd = Math.sqrt(data.open_bid_size.reduce((acc, val, _, arr) => 
+                    acc + Math.pow(val - arr.reduce((a, b) => a + b, 0) / arr.length, 2), 0) / data.open_bid_size.length);
+                const avgBidSize = totalBidSize / data.open_bid_size.length;
+                const depthStability = ((1 - (bidSizeStd / avgBidSize)) * 100).toFixed(1);
+                
+                // Fair Value Deviation - Time-weighted price stability
+                const avgTimeWeightBid = data.time_weight_bid.reduce((a, b) => a + b, 0) / data.time_weight_bid.length;
+                const avgTimeWeightAsk = data.time_weight_ask.reduce((a, b) => a + b, 0) / data.time_weight_ask.length;
+                const fairValue = (avgTimeWeightBid + avgTimeWeightAsk) / 2;
+                const fairValueDev = (Math.abs(avgTimeWeightBid - avgTimeWeightAsk) / fairValue * 10000).toFixed(2); // in basis points
+                
+                // Liquidity Risk - Combined spread and depth risk
+                const liquidityRisk = (parseFloat(sizeImbalance) + parseFloat(quotePressure) / 10).toFixed(1);
+
+                // Update statistics
+                document.getElementById('volatility-intensity').textContent = `${volatilityIntensity}/min`;
+                document.getElementById('liquidity-risk').textContent = liquidityRisk;
+                document.getElementById('quote-pressure').textContent = `${quotePressure}%`;
+                document.getElementById('size-imbalance').textContent = `${sizeImbalance}%`;
+                document.getElementById('depth-stability').textContent = `${depthStability}%`;
+                document.getElementById('fair-value-dev').textContent = `${fairValueDev}bp`;
+
+                // Create bid/ask size chart
+                const bidSizeTrace = {
+                    x: dates,
+                    y: data.open_bid_size,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Bid Size',
+                    line: { color: '#4CAF50', width: 2 }
+                };
+
+                const askSizeTrace = {
+                    x: dates,
+                    y: data.open_ask_size,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Ask Size',
+                    line: { color: '#F44336', width: 2 }
+                };
+
+                const sizeLayout = {
+                    title: 'Bid/Ask Size at Open',
+                    paper_bgcolor: 'white',
+                    plot_bgcolor: 'white',
+                    font: { color: 'black' },
+                    xaxis: { 
+                        title: 'Time',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis: { 
+                        title: 'Size (Shares)',
+                        gridcolor: '#e6e6e6'
+                    },
+                    margin: { t: 50, r: 50, b: 50, l: 50 },
+                    hovermode: 'x unified'
+                };
+
+                Plotly.newPlot('size-chart', [bidSizeTrace, askSizeTrace], sizeLayout, {responsive: true});
+
+                // Create NBBO quote activity chart
+                const quotesTrace = {
+                    x: dates,
+                    y: data.nbbo_quote_count,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'NBBO Quote Count',
+                    line: { color: '#9C27B0', width: 2 },
+                    fill: 'tozeroy',
+                    fillcolor: 'rgba(156, 39, 176, 0.3)'
+                };
+
+                const timeWeightBidTrace = {
+                    x: dates,
+                    y: data.time_weight_bid,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Time-Weighted Bid',
+                    line: { color: '#00BCD4', width: 1.5 },
+                    yaxis: 'y2'
+                };
+
+                const timeWeightAskTrace = {
+                    x: dates,
+                    y: data.time_weight_ask,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Time-Weighted Ask',
+                    line: { color: '#FF5722', width: 1.5 },
+                    yaxis: 'y2'
+                };
+
+                const quotesLayout = {
+                    title: 'Quote Activity & Time-Weighted Prices',
+                    paper_bgcolor: 'white',
+                    plot_bgcolor: 'white',
+                    font: { color: 'black' },
+                    xaxis: { 
+                        title: 'Time',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis: { 
+                        title: 'Quote Count',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis2: {
+                        title: 'Price ($)',
+                        overlaying: 'y',
+                        side: 'right',
+                        gridcolor: '#e6e6e6'
+                    },
+                    margin: { t: 50, r: 70, b: 50, l: 50 },
+                    hovermode: 'x unified'
+                };
+
+                Plotly.newPlot('quotes-chart', [quotesTrace, timeWeightBidTrace, timeWeightAskTrace], quotesLayout, {responsive: true});
+
+                console.log('✅ Liquidity analysis loaded successfully');
+                console.log(`📊 Liquidity Microstructure Metrics:`);
+                console.log(`   Volatility Intensity: ${volatilityIntensity}/min | Liquidity Risk: ${liquidityRisk}`);
+                console.log(`   Quote Pressure: ${quotePressure}% | Fair Value Dev: ${fairValueDev}bp`);
+
+            } catch (error) {
+                console.error('❌ Error loading liquidity data:', error);
+                document.getElementById('avg-bid-size').textContent = 'Error';
+                document.getElementById('avg-ask-size').textContent = 'Error';
+                document.getElementById('total-quotes').textContent = 'Error';
+                document.getElementById('bid-ask-imbalance').textContent = 'Error';
+            }
+        }
+
+        // Load data when page loads
+        window.addEventListener('DOMContentLoaded', loadLiquidityData);
+    </script>
+</body>
+</html>

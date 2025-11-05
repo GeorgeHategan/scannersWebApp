@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: market-analysis-platform
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python start.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_PATH
+        value: ./taq_data.duckdb
+      - key: PYTHONPATH
+        value: /opt/render/project/src
+    autoDeploy: true
+    healthCheckPath: /test

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VWAP & Trade Analysis - Scanner WebApp</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #0f0f23; 
+            color: white; 
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .nav-button {
+            background: #1a1a3e;
+            color: #00d4aa;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 5px;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+        }
+        .nav-button:hover { background: #2a2a4e; }
+        .nav-button.active { background: #00d4aa; color: #0f0f23; }
+        .chart-container { 
+            background: white; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            height: 500px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #1a1a3e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d4aa;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 VWAP & Trade Flow Analysis</h1>
+    
+    <div class="nav-tabs">
+        <button onclick="window.location.href='/'" class="nav-button">Chart</button>
+        <button onclick="window.location.href='/spread?symbol=AAPL'" class="nav-button">Spread Analysis</button>
+        <button class="nav-button active">VWAP Analysis</button>
+        <button onclick="window.location.href='/volume?symbol=AAPL'" class="nav-button">Volume Analysis</button>
+        <button onclick="window.location.href='/liquidity?symbol=AAPL'" class="nav-button">Liquidity Analysis</button>
+        <button onclick="window.location.href='/flow?symbol=AAPL'" class="nav-button">Order Flow</button>
+    </div>
+
+    <div class="stats-grid" id="stats-container">
+        <div class="stat-card">
+            <div class="stat-value" id="vwap-momentum">Loading...</div>
+            <div class="stat-label">VWAP Momentum</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="execution-quality">Loading...</div>
+            <div class="stat-label">Execution Quality</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="price-efficiency">Loading...</div>
+            <div class="stat-label">Price Efficiency</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="volume-sync">Loading...</div>
+            <div class="stat-label">Volume Synchronization</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="fair-value-gap">Loading...</div>
+            <div class="stat-label">Fair Value Gap</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="institutional-flow">Loading...</div>
+            <div class="stat-label">Institutional Flow</div>
+        </div>
+    </div>
+
+    <div class="chart-container" id="vwap-chart"></div>
+    <div class="chart-container" id="trades-chart"></div>
+
+    <script>
+        async function loadVWAPData() {
+            try {
+                console.log('🔄 Loading VWAP and trade data...');
+                const response = await fetch('/api/indicators?symbol=AAPL');
+                const data = await response.json();
+                
+                if (data.s !== "ok") {
+                    throw new Error('No VWAP data available');
+                }
+
+                // Convert timestamps to dates
+                const dates = data.t.map(timestamp => new Date(timestamp * 1000));
+                
+                // Calculate sophisticated VWAP microstructure metrics
+                const avgVWAP = data.vwap.reduce((a, b) => a + b, 0) / data.vwap.length;
+                const totalTrades = data.total_trades.reduce((a, b) => a + b, 0);
+                const totalBid = data.trade_at_bid.reduce((a, b) => a + b, 0);
+                const totalAsk = data.trade_at_ask.reduce((a, b) => a + b, 0);
+                const totalVolume = data.volume ? data.volume.reduce((a, b) => a + b, 0) : totalTrades;
+                
+                // VWAP Momentum - Rate of VWAP change (slope analysis)
+                let vwapMomentum = 0;
+                if (data.vwap.length > 2) {
+                    const recent = data.vwap.slice(-5).reduce((a, b) => a + b, 0) / Math.min(5, data.vwap.length);
+                    const earlier = data.vwap.slice(0, Math.max(1, data.vwap.length - 5)).reduce((a, b) => a + b, 0) / Math.max(1, data.vwap.length - 5);
+                    vwapMomentum = ((recent - earlier) / earlier) * 10000; // basis points
+                }
+                
+                // Execution Quality - How close trades are to VWAP
+                const avgPrice = data.close ? data.close.reduce((a, b) => a + b, 0) / data.close.length : avgVWAP;
+                const executionQuality = Math.max(0, 100 - Math.abs((avgPrice - avgVWAP) / avgVWAP * 10000)); // basis points to score
+                
+                // Price Efficiency - Deviation from theoretical fair value
+                const priceStd = data.vwap.length > 1 ? Math.sqrt(data.vwap.reduce((sum, val) => sum + Math.pow(val - avgVWAP, 2), 0) / data.vwap.length) : 0;
+                const priceEfficiency = priceStd > 0 ? Math.max(0, 100 - (priceStd / avgVWAP * 10000)) : 90;
+                
+                // Volume Synchronization - How well volume aligns with price moves
+                const volumeSync = totalVolume > 0 && totalTrades > 0 ? Math.min(100, (totalVolume / totalTrades) * 10) : 50;
+                
+                // Fair Value Gap - Bid/Ask imbalance impact on VWAP
+                const fairValueGap = totalBid + totalAsk > 0 ? Math.abs((totalBid - totalAsk) / (totalBid + totalAsk)) * 100 : 0;
+                
+                // Institutional Flow Indicator - Large block detection
+                const avgTradeSize = totalTrades > 0 ? totalVolume / totalTrades : 0;
+                const institutionalFlow = avgTradeSize > 1000 ? 'High' : avgTradeSize > 500 ? 'Medium' : 'Low';
+                
+                // Update sophisticated statistics
+                document.getElementById('vwap-momentum').textContent = `${vwapMomentum.toFixed(1)} bps`;
+                document.getElementById('execution-quality').textContent = `${executionQuality.toFixed(1)}%`;
+                document.getElementById('price-efficiency').textContent = `${priceEfficiency.toFixed(1)}%`;
+                document.getElementById('volume-sync').textContent = `${volumeSync.toFixed(1)}%`;
+                document.getElementById('fair-value-gap').textContent = `${fairValueGap.toFixed(2)}%`;
+                document.getElementById('institutional-flow').textContent = institutionalFlow;
+
+                // Create VWAP chart
+                const vwapTrace = {
+                    x: dates,
+                    y: data.vwap,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'VWAP',
+                    line: { color: '#00d4aa', width: 2 }
+                };
+
+                const vwapLayout = {
+                    title: 'Volume Weighted Average Price (VWAP)',
+                    paper_bgcolor: 'white',
+                    plot_bgcolor: 'white',
+                    font: { color: 'black' },
+                    xaxis: { 
+                        title: 'Time',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis: { 
+                        title: 'Price ($)',
+                        gridcolor: '#e6e6e6'
+                    },
+                    margin: { t: 50, r: 50, b: 50, l: 50 }
+                };
+
+                Plotly.newPlot('vwap-chart', [vwapTrace], vwapLayout, {responsive: true});
+
+                // Create trades flow chart
+                const bidTrace = {
+                    x: dates,
+                    y: data.trade_at_bid,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trades at Bid',
+                    line: { color: '#ff6b6b', width: 2 }
+                };
+
+                const askTrace = {
+                    x: dates,
+                    y: data.trade_at_ask,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Trades at Ask',
+                    line: { color: '#4ecdc4', width: 2 }
+                };
+
+                const totalTrace = {
+                    x: dates,
+                    y: data.total_trades,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Total Trades',
+                    line: { color: '#45b7d1', width: 2 },
+                    yaxis: 'y2'
+                };
+
+                const tradesLayout = {
+                    title: 'Trade Flow Analysis',
+                    paper_bgcolor: 'white',
+                    plot_bgcolor: 'white',
+                    font: { color: 'black' },
+                    xaxis: { 
+                        title: 'Time',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis: { 
+                        title: 'Bid/Ask Trades',
+                        gridcolor: '#e6e6e6'
+                    },
+                    yaxis2: {
+                        title: 'Total Trades',
+                        overlaying: 'y',
+                        side: 'right',
+                        gridcolor: '#e6e6e6'
+                    },
+                    margin: { t: 50, r: 70, b: 50, l: 50 }
+                };
+
+                Plotly.newPlot('trades-chart', [bidTrace, askTrace, totalTrace], tradesLayout, {responsive: true});
+
+                console.log('✅ VWAP analysis loaded successfully');
+                console.log(`📊 Stats: VWAP=$${avgVWAP}, Trades=${totalTrades}, Imbalance=${tradeImbalance}%`);
+
+            } catch (error) {
+                console.error('❌ Error loading VWAP data:', error);
+                document.getElementById('vwap-momentum').textContent = 'Error';
+                document.getElementById('execution-quality').textContent = 'Error';
+                document.getElementById('price-efficiency').textContent = 'Error';
+                document.getElementById('volume-sync').textContent = 'Error';
+                document.getElementById('fair-value-gap').textContent = 'Error';
+                document.getElementById('institutional-flow').textContent = 'Error';
+            }
+        }
+
+        // Load data when page loads
+        window.addEventListener('DOMContentLoaded', loadVWAPData);
+    </script>
+</body>
+</html>

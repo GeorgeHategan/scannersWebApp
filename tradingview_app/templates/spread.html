@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Spread Analysis - {{ symbol }}</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    html, body { margin: 0; padding: 20px; background: #0e1117; color: #fff; font-family: Arial, sans-serif; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .chart-container { width: 100%; height: 400px; margin: 20px 0; background: #1e1e1e; border-radius: 8px; }
+    h1, h2 { color: #fff; }
+    .nav { margin-bottom: 20px; }
+    .nav a { color: #00d4aa; text-decoration: none; margin-right: 20px; padding: 10px; background: #2a2a2a; border-radius: 4px; }
+    .nav a:hover { background: #3a3a3a; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <a href="/?symbol={{ symbol }}">← Back to Price Chart</a>
+      <a href="/spread?symbol={{ symbol }}">Spread Analysis</a>
+    </div>
+    
+    <h1>{{ symbol }} - Spread Analysis</h1>
+    <h2>January 28, 2020</h2>
+    
+    <div id="spread-chart" class="chart-container"></div>
+    <div id="price-vs-spread" class="chart-container"></div>
+  </div>
+
+  <script>
+    const symbol = "{{ symbol }}";
+
+    async function loadData() {
+      try {
+        // Load both price and spread data
+        const [priceResponse, spreadResponse] = await Promise.all([
+          fetch(`/api/history?symbol=${symbol}`),
+          fetch(`/api/spread?symbol=${symbol}`)
+        ]);
+
+        const priceData = await priceResponse.json();
+        const spreadData = await spreadResponse.json();
+
+        if (priceData.s !== "ok" || spreadData.s !== "ok") {
+          console.log("⚠️ No data available");
+          return;
+        }
+
+        // Convert timestamps to Date objects
+        const times = priceData.t.map(t => new Date(t * 1000));
+
+        // Spread Chart
+        const spreadTrace1 = {
+          x: times,
+          y: spreadData.min_spread,
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Min Spread',
+          line: { color: '#00ff88', width: 2 }
+        };
+
+        const spreadTrace2 = {
+          x: times,
+          y: spreadData.max_spread,
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Max Spread',
+          line: { color: '#ff4444', width: 2 }
+        };
+
+        const spreadLayout = {
+          title: 'Bid-Ask Spread Over Time',
+          plot_bgcolor: '#1e1e1e',
+          paper_bgcolor: '#1e1e1e',
+          font: { color: '#fff' },
+          xaxis: { 
+            title: 'Time',
+            gridcolor: '#444',
+            color: '#fff'
+          },
+          yaxis: { 
+            title: 'Spread ($)',
+            gridcolor: '#444',
+            color: '#fff'
+          },
+          margin: { t: 50, r: 20, b: 50, l: 60 }
+        };
+
+        Plotly.newPlot('spread-chart', [spreadTrace1, spreadTrace2], spreadLayout);
+
+        // Price vs Spread correlation chart
+        const priceTrace = {
+          x: times,
+          y: priceData.c, // closing prices
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Price',
+          yaxis: 'y',
+          line: { color: '#ffffff', width: 1 }
+        };
+
+        const avgSpreadTrace = {
+          x: times,
+          y: spreadData.min_spread.map((min, i) => (min + spreadData.max_spread[i]) / 2),
+          type: 'scatter',
+          mode: 'lines',
+          name: 'Avg Spread',
+          yaxis: 'y2',
+          line: { color: '#ffaa00', width: 2 }
+        };
+
+        const correlationLayout = {
+          title: 'Price vs Average Spread',
+          plot_bgcolor: '#1e1e1e',
+          paper_bgcolor: '#1e1e1e',
+          font: { color: '#fff' },
+          xaxis: { 
+            title: 'Time',
+            gridcolor: '#444',
+            color: '#fff'
+          },
+          yaxis: { 
+            title: 'Price ($)',
+            gridcolor: '#444',
+            color: '#fff',
+            side: 'left'
+          },
+          yaxis2: {
+            title: 'Average Spread ($)',
+            overlaying: 'y',
+            side: 'right',
+            color: '#ffaa00'
+          },
+          margin: { t: 50, r: 80, b: 50, l: 60 }
+        };
+
+        Plotly.newPlot('price-vs-spread', [priceTrace, avgSpreadTrace], correlationLayout);
+
+        // Log some statistics
+        const avgMinSpread = spreadData.min_spread.reduce((a, b) => a + b, 0) / spreadData.min_spread.length;
+        const avgMaxSpread = spreadData.max_spread.reduce((a, b) => a + b, 0) / spreadData.max_spread.length;
+        
+        console.log(`Average Min Spread: $${avgMinSpread.toFixed(4)}`);
+        console.log(`Average Max Spread: $${avgMaxSpread.toFixed(4)}`);
+
+      } catch (error) {
+        console.error("❌ Error loading data:", error);
+      }
+    }
+
+    // Load data when page loads
+    loadData();
+  </script>
+</body>
+</html>
