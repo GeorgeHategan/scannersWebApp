@@ -44,7 +44,7 @@ async def home(request: Request, symbol: str = "AAPL"):
 @app.get("/test")
 def test_endpoint():
     """Simple test endpoint"""
-    return {"status": "ok", "message": "Server is working!"}
+    return {"status": "ok", "message": "Market Analysis Platform is working!", "version": "1.0.1"}
 
 
 @app.get("/spread")
