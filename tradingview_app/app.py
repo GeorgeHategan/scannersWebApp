@@ -192,9 +192,13 @@ def get_spread_data(symbol: str):
 
         # Convert time format to timestamps for TradingView
         timestamps = []
-        for time_str in df["TimeBarStart"]:
+        for idx, row in df.iterrows():
+            time_str = row["TimeBarStart"]
+            date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            dt = datetime(2020, 1, 28, hour, minute)
+            # Use the actual date from the database
+            year, month, day = map(int, date_val.split('-'))
+            dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
         # Handle NaN values in spread data
@@ -249,9 +253,12 @@ def get_indicators(symbol: str):
 
         # Convert time format to timestamps
         timestamps = []
-        for time_str in df["TimeBarStart"]:
+        for idx, row in df.iterrows():
+            time_str = row["TimeBarStart"]
+            date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            dt = datetime(2020, 1, 28, hour, minute)
+            year, month, day = map(int, date_val.split('-'))
+            dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
         return {
@@ -301,9 +308,12 @@ def get_volume_data(symbol: str):
 
         df = df.ffill().fillna(0)
         timestamps = []
-        for time_str in df["TimeBarStart"]:
+        for idx, row in df.iterrows():
+            time_str = row["TimeBarStart"]
+            date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            dt = datetime(2020, 1, 28, hour, minute)
+            year, month, day = map(int, date_val.split('-'))
+            dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
         return {
@@ -353,9 +363,12 @@ def get_liquidity_data(symbol: str):
 
         df = df.ffill().fillna(0)
         timestamps = []
-        for time_str in df["TimeBarStart"]:
+        for idx, row in df.iterrows():
+            time_str = row["TimeBarStart"]
+            date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            dt = datetime(2020, 1, 28, hour, minute)
+            year, month, day = map(int, date_val.split('-'))
+            dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
         return {
@@ -406,9 +419,12 @@ def get_flow_data(symbol: str):
 
         df = df.ffill().fillna(0)
         timestamps = []
-        for time_str in df["TimeBarStart"]:
+        for idx, row in df.iterrows():
+            time_str = row["TimeBarStart"]
+            date_val = row["Date"]
             hour, minute = map(int, time_str.split(':'))
-            dt = datetime(2020, 1, 28, hour, minute)
+            year, month, day = map(int, date_val.split('-'))
+            dt = datetime(year, month, day, hour, minute)
             timestamps.append(int(dt.timestamp()))
 
         return {
