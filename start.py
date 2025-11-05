@@ -24,21 +24,27 @@ def main():
     
     if app_dir.exists():
         os.chdir(app_dir)
+        # Add current directory to Python path
+        sys.path.insert(0, str(app_dir))
         print(f"📁 Changed working directory to: {app_dir}")
-        app_module = "app:app"
-    else:
-        # Fallback if already in the app directory
-        app_module = "app:app"
     
     print(f"🚀 Starting Market Analysis Platform on port {port}")
     print(f"📊 Current directory: {os.getcwd()}")
-    print(f"📊 Using app module: {app_module}")
+    print(f"📊 Python path: {sys.path[:3]}")
     print(f"🦆 USE_MOTHERDUCK: {os.getenv('USE_MOTHERDUCK', 'false')}")
     print(f"🦆 DATABASE_NAME: {os.getenv('DATABASE_NAME', 'not set')}")
     
+    # Import the app directly
+    try:
+        import app as application
+        print("✅ App module imported successfully")
+    except Exception as e:
+        print(f"❌ Failed to import app: {e}")
+        sys.exit(1)
+    
     # Start the server
     uvicorn.run(
-        app_module,
+        application.app,
         host="0.0.0.0",
         port=port,
         workers=1,
