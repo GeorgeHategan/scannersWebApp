@@ -18,17 +18,23 @@ def main():
     # Get port from environment (Render sets this automatically)
     port = int(os.getenv("PORT", 8000))
     
-    # Check if we can find the app module
-    app_module = "tradingview_app.app:app"
+    # Change to tradingview_app directory for app.py and static/
+    script_dir = Path(__file__).parent.resolve()
+    app_dir = script_dir / "tradingview_app"
     
-    # For Render deployment, the working directory might be different
-    if not os.path.exists("tradingview_app"):
-        # If we're in the root directory, use the module path directly
-        if os.path.exists("app.py"):
-            app_module = "app:app"
+    if app_dir.exists():
+        os.chdir(app_dir)
+        print(f"📁 Changed working directory to: {app_dir}")
+        app_module = "app:app"
+    else:
+        # Fallback if already in the app directory
+        app_module = "app:app"
     
     print(f"🚀 Starting Market Analysis Platform on port {port}")
+    print(f"📊 Current directory: {os.getcwd()}")
     print(f"📊 Using app module: {app_module}")
+    print(f"🦆 USE_MOTHERDUCK: {os.getenv('USE_MOTHERDUCK', 'false')}")
+    print(f"🦆 DATABASE_NAME: {os.getenv('DATABASE_NAME', 'not set')}")
     
     # Start the server
     uvicorn.run(
@@ -38,6 +44,7 @@ def main():
         workers=1,
         log_level="info"
     )
+
 
 if __name__ == "__main__":
     main()
