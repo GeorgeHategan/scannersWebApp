@@ -57,3 +57,7 @@ htmlcov/
 *.tmp
 *.temp
 .cache/
+
+# Database files (too large for deployment)
+*.duckdb
+taq_data.duckdb
