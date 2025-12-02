@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Scanner WebApp</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            padding: 20px; 
+            padding-top: 80px;
+            background: #0f0f1a; 
+            color: #c8c8d0;
+            line-height: 1.7;
+        }
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 26, 0.92);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .nav-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .nav-button {
+            background: rgba(255,255,255,0.05);
+            color: #7eb8a8;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .nav-button:hover { background: rgba(255,255,255,0.1); }
+        .nav-button.active { background: rgba(126, 184, 168, 0.2); color: #9ed4c4; }
+        
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        h1 { color: #9ed4c4; margin-top: 0; font-size: 28px; font-weight: 500; }
+        h2 { color: #d4a574; margin-top: 50px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; font-weight: 500; }
+        h3 { color: #8bc49a; margin-top: 30px; font-weight: 500; }
+        h4 { color: #7aadcf; margin-top: 20px; font-weight: 500; }
+        
+        .toc {
+            background: rgba(255,255,255,0.03);
+            padding: 24px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .toc h3 { margin-top: 0; color: #9ed4c4; }
+        .toc ul { columns: 2; column-gap: 40px; list-style: none; padding-left: 0; }
+        .toc li { margin: 10px 0; }
+        .toc a { color: #7eb8a8; text-decoration: none; transition: color 0.2s; }
+        .toc a:hover { color: #9ed4c4; }
+        
+        .card {
+            background: rgba(255,255,255,0.03);
+            padding: 24px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .card.page-card { border-left: 3px solid rgba(126, 184, 168, 0.5); }
+        .card.data-card { border-left: 3px solid rgba(212, 165, 116, 0.5); }
+        .card.future-card { border-left: 3px solid rgba(168, 139, 196, 0.5); }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 12px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        th {
+            background: rgba(255,255,255,0.04);
+            color: #9ed4c4;
+            font-weight: 500;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tr:hover { background: rgba(255,255,255,0.02); }
+        
+        code {
+            background: rgba(255,255,255,0.06);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: #d4a574;
+        }
+        
+        .formula {
+            background: rgba(122, 173, 207, 0.08);
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin: 12px 0;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            border-left: 3px solid rgba(122, 173, 207, 0.4);
+            color: #a8c4d8;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .badge.bullish { background: rgba(139, 196, 154, 0.2); color: #8bc49a; }
+        .badge.bearish { background: rgba(207, 122, 122, 0.2); color: #cf7a7a; }
+        .badge.neutral { background: rgba(212, 196, 116, 0.2); color: #d4c474; }
+        .badge.info { background: rgba(122, 173, 207, 0.2); color: #7aadcf; }
+        
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .toc ul { columns: 1; }
+        }
+        
+        .metric-box {
+            background: rgba(255,255,255,0.04);
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-box .name { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-box .value { font-size: 15px; font-weight: 500; color: #9ed4c4; margin-top: 6px; }
+        
+        .interpretation {
+            display: flex;
+            gap: 16px;
+            margin: 15px 0;
+        }
+        .interpretation > div {
+            flex: 1;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .interpretation .bullish-int { background: rgba(139, 196, 154, 0.1); border: 1px solid rgba(139, 196, 154, 0.25); }
+        .interpretation .bearish-int { background: rgba(207, 122, 122, 0.1); border: 1px solid rgba(207, 122, 122, 0.25); }
+
+        p { color: #a0a0a8; }
+        strong { color: #c8c8d0; }
+        ul { color: #a0a0a8; }
+        li { margin: 6px 0; }
+        
+        .footer {
+            margin-top: 60px; 
+            padding: 24px; 
+            text-align: center; 
+            color: #666; 
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-tabs">
+            <a href="/" class="nav-button">Chart</a>
+            <a href="/spread" class="nav-button">Spread</a>
+            <a href="/vwap" class="nav-button">VWAP</a>
+            <a href="/volume" class="nav-button">Volume</a>
+            <a href="/liquidity" class="nav-button">Liquidity</a>
+            <a href="/flow" class="nav-button">Flow</a>
+            <a href="/accumulation" class="nav-button">Accumulation</a>
+            <a href="/delta" class="nav-button">Delta</a>
+            <a href="/signal" class="nav-button">Signal</a>
+            <a href="/documentation" class="nav-button active">Docs</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>📚 Market Microstructure Analysis Platform</h1>
+        <p style="font-size: 16px; color: #888; margin-bottom: 30px;">
+            Comprehensive documentation for understanding TAQ (Trade and Quote) data analysis, 
+            order flow metrics, and directional signals.
+        </p>
+
+        <!-- Table of Contents -->
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#pages">1. Page Descriptions</a></li>
+                <li><a href="#database">2. Database Schema</a></li>
+                <li><a href="#price-data">3. Price Data Columns</a></li>
+                <li><a href="#volume-data">4. Volume & Trade Data</a></li>
+                <li><a href="#orderbook">5. Order Book Data</a></li>
+                <li><a href="#spread-data">6. Spread Data</a></li>
+                <li><a href="#aggressor">7. Trade Aggressor Data</a></li>
+                <li><a href="#tick-data">8. Tick Direction Data</a></li>
+                <li><a href="#derived">9. Derived Metrics</a></li>
+                <li><a href="#signals">10. Signal Calculations</a></li>
+                <li><a href="#future">11. Future Aggregations</a></li>
+                <li><a href="#glossary">12. Glossary</a></li>
+            </ul>
+        </div>
+
+        <!-- Section 1: Page Descriptions -->
+        <h2 id="pages">1. Page Descriptions</h2>
+        
+        <div class="card page-card">
+            <h4>Chart (Home)</h4>
+            <p>Main TradingView-style candlestick chart showing OHLC price data. Provides the primary price context for all other analysis.</p>
+            <p><strong>Key Metrics:</strong> Open, High, Low, Close, Volume</p>
+        </div>
+
+        <div class="card page-card">
+            <h4>Spread Analysis</h4>
+            <p>Analyzes the bid-ask spread over time. Wider spreads indicate lower liquidity or higher volatility. Tight spreads suggest efficient markets.</p>
+            <p><strong>Key Metrics:</strong> Min Spread, Max Spread, Spread Distribution</p>
+            <div class="interpretation">
+                <div class="bullish-int">✓ <strong>Tight Spread:</strong> High liquidity, easy to enter/exit</div>
+                <div class="bearish-int">⚠ <strong>Wide Spread:</strong> Low liquidity, higher transaction costs</div>
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>VWAP Analysis</h4>
+            <p>Volume Weighted Average Price - the average price weighted by volume. Institutional benchmark for trade execution quality.</p>
+            <p><strong>Key Metrics:</strong> VWAP, Trade at Bid, Trade at Ask, Total Trades</p>
+            <div class="interpretation">
+                <div class="bullish-int">✓ <strong>Price > VWAP:</strong> Bullish - buying above average</div>
+                <div class="bearish-int">⚠ <strong>Price < VWAP:</strong> Bearish - selling below average</div>
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>Volume Analysis</h4>
+            <p>Breaks down volume by tick direction (uptick, downtick, repeat uptick, repeat downtick). Shows momentum behind price moves.</p>
+            <p><strong>Key Metrics:</strong> Uptick Volume, Downtick Volume, Repeat Uptick, Repeat Downtick</p>
+            <div class="interpretation">
+                <div class="bullish-int">✓ <strong>Uptick > Downtick:</strong> Buying momentum</div>
+                <div class="bearish-int">⚠ <strong>Downtick > Uptick:</strong> Selling momentum</div>
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>Liquidity Analysis</h4>
+            <p>Examines order book depth by analyzing bid/ask sizes. Shows where support and resistance may exist.</p>
+            <p><strong>Key Metrics:</strong> Bid Size, Ask Size, NBBO Quote Count, Time-Weighted Prices</p>
+            <div class="interpretation">
+                <div class="bullish-int">✓ <strong>Bid Size > Ask Size:</strong> More support, bullish</div>
+                <div class="bearish-int">⚠ <strong>Ask Size > Bid Size:</strong> More resistance, bearish</div>
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>Flow Analysis</h4>
+            <p>Detailed breakdown of where trades execute relative to the bid/ask spread. Shows aggressive vs passive trading.</p>
+            <p><strong>Key Metrics:</strong> Trade at Bid, Trade at BidMid, Trade at Mid, Trade at MidAsk, Trade at Ask</p>
+            <div class="interpretation">
+                <div class="bullish-int">✓ <strong>Trade at Ask:</strong> Aggressive buying (lifting offers)</div>
+                <div class="bearish-int">⚠ <strong>Trade at Bid:</strong> Aggressive selling (hitting bids)</div>
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>Accumulation Analysis</h4>
+            <p>Comprehensive buy/sell pressure analysis with cumulative delta. Shows whether smart money is accumulating or distributing.</p>
+            <p><strong>Key Metrics:</strong> Buy Volume, Sell Volume, Delta, Cumulative Delta, Buy/Sell Ratio</p>
+            <div class="interpretation">
+                <div class="bullish-int">✓ <strong>Rising Cumulative Delta:</strong> Net accumulation</div>
+                <div class="bearish-int">⚠ <strong>Falling Cumulative Delta:</strong> Net distribution</div>
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>Delta Analysis</h4>
+            <p>Focused view of order flow delta (Buy - Sell volume) with tick delta analysis. Core momentum indicator.</p>
+            <p><strong>Key Metrics:</strong> Delta, Cumulative Delta, Tick Delta, Book Imbalance</p>
+            <div class="formula">
+                Delta = (TradeAtAsk + TradeAtMidAsk) - (TradeAtBid + TradeAtBidMid)
+            </div>
+        </div>
+
+        <div class="card page-card">
+            <h4>Signal Analysis</h4>
+            <p>Combined directional signal score (-100 to +100) using weighted components. Provides actionable buy/sell/hold signals.</p>
+            <p><strong>Signal Components:</strong></p>
+            <div class="grid-2">
+                <div class="metric-box">
+                    <div class="name">Delta Score (40%)</div>
+                    <div class="value">Buy/Sell Imbalance</div>
+                </div>
+                <div class="metric-box">
+                    <div class="name">Tick Score (25%)</div>
+                    <div class="value">Uptick/Downtick Ratio</div>
+                </div>
+                <div class="metric-box">
+                    <div class="name">Book Score (20%)</div>
+                    <div class="value">Order Book Imbalance</div>
+                </div>
+                <div class="metric-box">
+                    <div class="name">Mid Score (15%)</div>
+                    <div class="value">Trade-to-Mid Position</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Database Schema -->
+        <h2 id="database">2. Database Schema</h2>
+        
+        <div class="card data-card">
+            <p>The TAQ (Trade and Quote) database contains 1-minute bar aggregated data from market trades and quotes.</p>
+            <table>
+                <tr><th>Property</th><th>Value</th></tr>
+                <tr><td>Table Name</td><td><code>taq_1min</code></td></tr>
+                <tr><td>Database</td><td>DuckDB (local) / MotherDuck (cloud)</td></tr>
+                <tr><td>Granularity</td><td>1-minute bars</td></tr>
+                <tr><td>Total Columns</td><td>61 columns</td></tr>
+            </table>
+        </div>
+
+        <!-- Section 3: Price Data -->
+        <h2 id="price-data">3. Price Data Columns</h2>
+        
+        <div class="card data-card">
+            <table>
+                <tr><th>Column</th><th>Type</th><th>Description</th><th>Use Case</th></tr>
+                <tr><td><code>FirstTradePrice</code></td><td>DOUBLE</td><td>First trade price in the bar (Open)</td><td>Opening price for candlestick</td></tr>
+                <tr><td><code>LastTradePrice</code></td><td>DOUBLE</td><td>Last trade price in the bar (Close)</td><td>Closing price, current price</td></tr>
+                <tr><td><code>HighTradePrice</code></td><td>DOUBLE</td><td>Highest trade price in the bar</td><td>Bar high, resistance levels</td></tr>
+                <tr><td><code>LowTradePrice</code></td><td>DOUBLE</td><td>Lowest trade price in the bar</td><td>Bar low, support levels</td></tr>
+                <tr><td><code>VolumeWeightPrice</code></td><td>DOUBLE</td><td>Volume-weighted average price (VWAP)</td><td>Execution benchmark</td></tr>
+                <tr><td><code>OpenBidPrice</code></td><td>DOUBLE</td><td>Bid price at bar open</td><td>Opening bid level</td></tr>
+                <tr><td><code>OpenAskPrice</code></td><td>DOUBLE</td><td>Ask price at bar open</td><td>Opening ask level</td></tr>
+                <tr><td><code>CloseBidPrice</code></td><td>DOUBLE</td><td>Bid price at bar close</td><td>Closing bid level</td></tr>
+                <tr><td><code>CloseAskPrice</code></td><td>DOUBLE</td><td>Ask price at bar close</td><td>Closing ask level</td></tr>
+                <tr><td><code>HighBidPrice</code></td><td>DOUBLE</td><td>Highest bid price in bar</td><td>Best bid reached</td></tr>
+                <tr><td><code>HighAskPrice</code></td><td>DOUBLE</td><td>Highest ask price in bar</td><td>Worst ask reached</td></tr>
+                <tr><td><code>LowBidPrice</code></td><td>DOUBLE</td><td>Lowest bid price in bar</td><td>Worst bid reached</td></tr>
+                <tr><td><code>LowAskPrice</code></td><td>DOUBLE</td><td>Lowest ask price in bar</td><td>Best ask reached</td></tr>
+                <tr><td><code>TimeWeightBid</code></td><td>DOUBLE</td><td>Time-weighted average bid</td><td>Average bid over time</td></tr>
+                <tr><td><code>TimeWeightAsk</code></td><td>DOUBLE</td><td>Time-weighted average ask</td><td>Average ask over time</td></tr>
+            </table>
+        </div>
+
+        <!-- Section 4: Volume Data -->
+        <h2 id="volume-data">4. Volume & Trade Data</h2>
+        
+        <div class="card data-card">
+            <table>
+                <tr><th>Column</th><th>Type</th><th>Description</th><th>Use Case</th></tr>
+                <tr><td><code>Volume</code></td><td>BIGINT</td><td>Total shares traded in bar</td><td>Activity level, liquidity</td></tr>
+                <tr><td><code>TotalTrades</code></td><td>BIGINT</td><td>Number of individual trades</td><td>Trade frequency analysis</td></tr>
+                <tr><td><code>FinraVolume</code></td><td>BIGINT</td><td>Off-exchange (dark pool) volume</td><td>Institutional activity</td></tr>
+                <tr><td><code>FinraVolumeWeightPrice</code></td><td>DOUBLE</td><td>VWAP for off-exchange trades</td><td>Dark pool execution price</td></tr>
+                <tr><td><code>CancelSize</code></td><td>BIGINT</td><td>Cancelled order volume</td><td>Order cancellation activity</td></tr>
+            </table>
+            
+            <h4>Volume Interpretation</h4>
+            <div class="formula">
+                High Volume + Price Up = Strong bullish confirmation<br>
+                High Volume + Price Down = Strong bearish confirmation<br>
+                Low Volume + Price Move = Weak/unsustained move
+            </div>
+        </div>
+
+        <!-- Section 5: Order Book Data -->
+        <h2 id="orderbook">5. Order Book Data</h2>
+        
+        <div class="card data-card">
+            <table>
+                <tr><th>Column</th><th>Type</th><th>Description</th><th>Use Case</th></tr>
+                <tr><td><code>OpenBidSize</code></td><td>BIGINT</td><td>Bid size at bar open</td><td>Opening liquidity on bid</td></tr>
+                <tr><td><code>OpenAskSize</code></td><td>BIGINT</td><td>Ask size at bar open</td><td>Opening liquidity on ask</td></tr>
+                <tr><td><code>CloseBidSize</code></td><td>BIGINT</td><td>Bid size at bar close</td><td>Closing liquidity on bid</td></tr>
+                <tr><td><code>CloseAskSize</code></td><td>BIGINT</td><td>Ask size at bar close</td><td>Closing liquidity on ask</td></tr>
+                <tr><td><code>HighBidSize</code></td><td>BIGINT</td><td>Highest bid size in bar</td><td>Max bid depth</td></tr>
+                <tr><td><code>HighAskSize</code></td><td>BIGINT</td><td>Highest ask size in bar</td><td>Max ask depth</td></tr>
+                <tr><td><code>LowBidSize</code></td><td>BIGINT</td><td>Lowest bid size in bar</td><td>Min bid depth</td></tr>
+                <tr><td><code>LowAskSize</code></td><td>BIGINT</td><td>Lowest ask size in bar</td><td>Min ask depth</td></tr>
+                <tr><td><code>NBBOQuoteCount</code></td><td>BIGINT</td><td>Number of NBBO quote updates</td><td>Quote activity/volatility</td></tr>
+            </table>
+            
+            <h4>Order Book Imbalance Formula</h4>
+            <div class="formula">
+                Book Imbalance = (BidSize - AskSize) / (BidSize + AskSize) × 100%<br><br>
+                Positive = More bids than asks = Bullish support<br>
+                Negative = More asks than bids = Bearish pressure
+            </div>
+        </div>
+
+        <!-- Section 6: Spread Data -->
+        <h2 id="spread-data">6. Spread Data</h2>
+        
+        <div class="card data-card">
+            <table>
+                <tr><th>Column</th><th>Type</th><th>Description</th><th>Use Case</th></tr>
+                <tr><td><code>MinSpread</code></td><td>DOUBLE</td><td>Tightest spread in bar</td><td>Best liquidity moment</td></tr>
+                <tr><td><code>MaxSpread</code></td><td>DOUBLE</td><td>Widest spread in bar</td><td>Worst liquidity moment</td></tr>
+            </table>
+            
+            <h4>Spread Analysis</h4>
+            <div class="formula">
+                Spread = AskPrice - BidPrice<br>
+                Spread % = (Spread / MidPrice) × 100<br><br>
+                Tight Spread (< 0.05%): High liquidity, efficient market<br>
+                Wide Spread (> 0.20%): Low liquidity, volatile conditions
+            </div>
+        </div>
+
+        <!-- Section 7: Trade Aggressor Data -->
+        <h2 id="aggressor">7. Trade Aggressor Data</h2>
+        
+        <div class="card data-card">
+            <p>These columns show WHERE trades executed relative to the bid-ask spread. This is crucial for understanding buying vs selling pressure.</p>
+            
+            <table>
+                <tr><th>Column</th><th>Type</th><th>Description</th><th>Interpretation</th></tr>
+                <tr><td><code>TradeAtBid</code></td><td>BIGINT</td><td>Volume executed at bid price</td><td><span class="badge bearish">Aggressive Selling</span></td></tr>
+                <tr><td><code>TradeAtBidMid</code></td><td>BIGINT</td><td>Volume between bid and mid</td><td><span class="badge bearish">Passive Selling</span></td></tr>
+                <tr><td><code>TradeAtMid</code></td><td>BIGINT</td><td>Volume at midpoint price</td><td><span class="badge neutral">Neutral</span></td></tr>
+                <tr><td><code>TradeAtMidAsk</code></td><td>BIGINT</td><td>Volume between mid and ask</td><td><span class="badge bullish">Passive Buying</span></td></tr>
+                <tr><td><code>TradeAtAsk</code></td><td>BIGINT</td><td>Volume executed at ask price</td><td><span class="badge bullish">Aggressive Buying</span></td></tr>
+                <tr><td><code>TradeAtCrossOrLocked</code></td><td>BIGINT</td><td>Volume in crossed/locked markets</td><td><span class="badge info">Special Condition</span></td></tr>
+            </table>
+            
+            <h4>Trade Location Metrics</h4>
+            <div class="formula">
+                <code>TradeToMidVolWeight</code> = Distance from mid, weighted by volume<br>
+                Positive = Trades closer to Ask (buying pressure)<br>
+                Negative = Trades closer to Bid (selling pressure)<br><br>
+                <code>TradeToMidVolWeightRelative</code> = Normalized version (0-1 scale)
+            </div>
+        </div>
+
+        <!-- Section 8: Tick Direction Data -->
+        <h2 id="tick-data">8. Tick Direction Data</h2>
+        
+        <div class="card data-card">
+            <p>These columns classify volume based on price movement direction (tick rule).</p>
+            
+            <table>
+                <tr><th>Column</th><th>Type</th><th>Description</th><th>Interpretation</th></tr>
+                <tr><td><code>UptickVolume</code></td><td>BIGINT</td><td>Volume on price upticks</td><td><span class="badge bullish">Buying Momentum</span></td></tr>
+                <tr><td><code>DowntickVolume</code></td><td>BIGINT</td><td>Volume on price downticks</td><td><span class="badge bearish">Selling Momentum</span></td></tr>
+                <tr><td><code>RepeatUptickVolume</code></td><td>BIGINT</td><td>Volume on repeated upticks</td><td><span class="badge bullish">Strong Buying</span></td></tr>
+                <tr><td><code>RepeatDowntickVolume</code></td><td>BIGINT</td><td>Volume on repeated downticks</td><td><span class="badge bearish">Strong Selling</span></td></tr>
+                <tr><td><code>UnknownTickVolume</code></td><td>BIGINT</td><td>Volume with unknown direction</td><td><span class="badge neutral">Indeterminate</span></td></tr>
+            </table>
+            
+            <h4>Tick Delta Formula</h4>
+            <div class="formula">
+                Tick Delta = (UptickVolume + RepeatUptickVolume) - (DowntickVolume + RepeatDowntickVolume)<br><br>
+                Positive Tick Delta = Price momentum is UP<br>
+                Negative Tick Delta = Price momentum is DOWN
+            </div>
+        </div>
+
+        <!-- Section 9: Derived Metrics -->
+        <h2 id="derived">9. Derived Metrics (Calculated)</h2>
+        
+        <div class="card data-card">
+            <p>These metrics are calculated in real-time from raw data columns:</p>
+            
+            <h4>Delta (Order Flow)</h4>
+            <div class="formula">
+                Buy Volume = TradeAtAsk + TradeAtMidAsk<br>
+                Sell Volume = TradeAtBid + TradeAtBidMid<br>
+                Delta = Buy Volume - Sell Volume<br>
+                Cumulative Delta = Running sum of Delta
+            </div>
+            
+            <h4>Delta Percentage</h4>
+            <div class="formula">
+                Delta % = Delta / (Buy Volume + Sell Volume) × 100<br>
+                Range: -100% (all selling) to +100% (all buying)
+            </div>
+            
+            <h4>Buy/Sell Ratio</h4>
+            <div class="formula">
+                Buy/Sell Ratio = Buy Volume / Sell Volume<br>
+                > 1.0 = More buying than selling<br>
+                < 1.0 = More selling than buying
+            </div>
+            
+            <h4>Order Book Imbalance</h4>
+            <div class="formula">
+                Avg Bid Size = (OpenBidSize + CloseBidSize) / 2<br>
+                Avg Ask Size = (OpenAskSize + CloseAskSize) / 2<br>
+                Book Imbalance = (Bid Size - Ask Size) / Total Size × 100%
+            </div>
+        </div>
+
+        <!-- Section 10: Signal Calculations -->
+        <h2 id="signals">10. Signal Score Calculations</h2>
+        
+        <div class="card data-card">
+            <p>The Signal page combines multiple indicators into a single directional score (-100 to +100):</p>
+            
+            <h4>Component Scores</h4>
+            <table>
+                <tr><th>Component</th><th>Weight</th><th>Formula</th><th>Range</th></tr>
+                <tr>
+                    <td>Delta Score</td>
+                    <td>40%</td>
+                    <td><code>(BuyVol - SellVol) / TotalVol × 100</code></td>
+                    <td>-100 to +100</td>
+                </tr>
+                <tr>
+                    <td>Tick Score</td>
+                    <td>25%</td>
+                    <td><code>(Uptick - Downtick) / TotalTick × 100</code></td>
+                    <td>-100 to +100</td>
+                </tr>
+                <tr>
+                    <td>Book Score</td>
+                    <td>20%</td>
+                    <td><code>(BidSize - AskSize) / TotalSize × 100</code></td>
+                    <td>-100 to +100</td>
+                </tr>
+                <tr>
+                    <td>Mid Score</td>
+                    <td>15%</td>
+                    <td><code>TradeToMidVolWeightRelative × 100</code></td>
+                    <td>-100 to +100</td>
+                </tr>
+            </table>
+            
+            <h4>Combined Signal Formula</h4>
+            <div class="formula">
+                Combined Signal = (Delta × 0.40) + (Tick × 0.25) + (Book × 0.20) + (Mid × 0.15)<br><br>
+                Signal > +20 = BULLISH (Buy Signal)<br>
+                Signal < -20 = BEARISH (Sell Signal)<br>
+                -20 to +20 = NEUTRAL (Hold)
+            </div>
+        </div>
+
+        <!-- Section 11: Future Aggregations -->
+        <h2 id="future">11. Possible Future Aggregations</h2>
+        
+        <div class="grid-2">
+            <div class="card future-card">
+                <h4>Multi-Timeframe Analysis</h4>
+                <p>Aggregate 1-minute data into:</p>
+                <ul>
+                    <li>5-minute bars</li>
+                    <li>15-minute bars</li>
+                    <li>1-hour bars</li>
+                    <li>Daily summaries</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Session Analysis</h4>
+                <p>Break down by trading session:</p>
+                <ul>
+                    <li>Pre-market (4:00 - 9:30)</li>
+                    <li>Market open (9:30 - 10:30)</li>
+                    <li>Midday (10:30 - 14:00)</li>
+                    <li>Power hour (15:00 - 16:00)</li>
+                    <li>After-hours (16:00 - 20:00)</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Rolling Statistics</h4>
+                <p>Calculate rolling windows:</p>
+                <ul>
+                    <li>20-period moving averages</li>
+                    <li>Rolling VWAP deviation</li>
+                    <li>Rolling delta momentum</li>
+                    <li>Rolling spread percentile</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Volatility Metrics</h4>
+                <p>Derive volatility measures:</p>
+                <ul>
+                    <li>Intraday range (High - Low)</li>
+                    <li>Average True Range (ATR)</li>
+                    <li>Spread volatility</li>
+                    <li>Quote update frequency</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Institutional Flow</h4>
+                <p>Identify institutional activity:</p>
+                <ul>
+                    <li>Block trade detection (large sizes)</li>
+                    <li>Dark pool ratio analysis</li>
+                    <li>Iceberg order detection</li>
+                    <li>Sweep order identification</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Statistical Signals</h4>
+                <p>Advanced analytics:</p>
+                <ul>
+                    <li>Z-score of delta vs historical</li>
+                    <li>Cumulative delta divergence</li>
+                    <li>Volume-at-price profile</li>
+                    <li>Order book pressure score</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Pattern Recognition</h4>
+                <p>Detect common patterns:</p>
+                <ul>
+                    <li>Accumulation/Distribution phases</li>
+                    <li>Delta divergence with price</li>
+                    <li>Exhaustion volume</li>
+                    <li>Trapped traders (failed breakouts)</li>
+                </ul>
+            </div>
+            
+            <div class="card future-card">
+                <h4>Risk Metrics</h4>
+                <p>Risk assessment:</p>
+                <ul>
+                    <li>Drawdown analysis</li>
+                    <li>Volume dry-up detection</li>
+                    <li>Liquidity warning signals</li>
+                    <li>Unusual spread expansion</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Section 12: Glossary -->
+        <h2 id="glossary">12. Glossary</h2>
+        
+        <div class="card data-card">
+            <table>
+                <tr><th>Term</th><th>Definition</th></tr>
+                <tr><td><strong>Aggressor</strong></td><td>The party initiating the trade. Buyer aggressor = lifting offer, Seller aggressor = hitting bid.</td></tr>
+                <tr><td><strong>Bid</strong></td><td>The highest price buyers are willing to pay.</td></tr>
+                <tr><td><strong>Ask/Offer</strong></td><td>The lowest price sellers are willing to accept.</td></tr>
+                <tr><td><strong>Spread</strong></td><td>The difference between the ask and bid price.</td></tr>
+                <tr><td><strong>Mid/Midpoint</strong></td><td>The average of bid and ask: (Bid + Ask) / 2</td></tr>
+                <tr><td><strong>NBBO</strong></td><td>National Best Bid and Offer - the best available prices across all exchanges.</td></tr>
+                <tr><td><strong>VWAP</strong></td><td>Volume Weighted Average Price - average price weighted by volume traded.</td></tr>
+                <tr><td><strong>Delta</strong></td><td>The difference between buy volume and sell volume. Positive = net buying.</td></tr>
+                <tr><td><strong>Cumulative Delta</strong></td><td>Running total of delta over time. Shows accumulation/distribution.</td></tr>
+                <tr><td><strong>Uptick</strong></td><td>A trade executed at a higher price than the previous trade.</td></tr>
+                <tr><td><strong>Downtick</strong></td><td>A trade executed at a lower price than the previous trade.</td></tr>
+                <tr><td><strong>Dark Pool</strong></td><td>Private exchanges where trades are not publicly visible (FINRA volume).</td></tr>
+                <tr><td><strong>Order Book</strong></td><td>The collection of all buy and sell orders at different price levels.</td></tr>
+                <tr><td><strong>Liquidity</strong></td><td>How easily an asset can be bought or sold without affecting price.</td></tr>
+                <tr><td><strong>TAQ</strong></td><td>Trade and Quote - high-frequency market data showing all trades and quote updates.</td></tr>
+            </table>
+        </div>
+
+        <div class="footer">
+            <p>Market Microstructure Analysis Platform v1.0</p>
+            <p style="margin-top: 4px;">Built with FastAPI, DuckDB, and Plotly.js</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signal Analysis - Scanner WebApp</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" 
+            onload="console.log('Plotly script loaded')" 
+            onerror="console.error('Failed to load Plotly'); document.body.innerHTML='<h1 style=color:red>Failed to load charting library</h1>'"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            padding: 20px; 
+            padding-top: 80px;
+            background: #0f0f23; 
+            color: white; 
+        }
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 1px solid #333;
+        }
+        .nav-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .nav-button {
+            background: #1a1a3e;
+            color: #00d4aa;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .nav-button:hover { background: #2a2a4e; }
+        .nav-button.active { background: #FF5722; color: white; }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ticker-select, .date-display {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .ticker-select { min-width: 100px; cursor: pointer; }
+        .ticker-select:focus { outline: none; border-color: #FF5722; }
+        .date-nav { display: flex; align-items: center; gap: 6px; }
+        .date-arrow {
+            background: #2a2a4e;
+            border: none;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .date-arrow:hover { background: #FF5722; color: #fff; }
+        .date-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+        .date-display { min-width: 90px; text-align: center; font-weight: 500; }
+        .chart-container { 
+            background: #1a1a2e; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            min-height: 350px;
+            width: 100%;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #1a1a3e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #FF5722;
+        }
+        .stat-value.bullish { color: #4CAF50; }
+        .stat-value.bearish { color: #F44336; }
+        .stat-value.neutral { color: #FFC107; }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        h1 { margin-top: 0; }
+        .signal-gauge {
+            background: linear-gradient(90deg, #F44336 0%, #FF9800 25%, #FFC107 50%, #8BC34A 75%, #4CAF50 100%);
+            height: 40px;
+            border-radius: 20px;
+            position: relative;
+            margin: 15px 0;
+        }
+        .signal-indicator {
+            position: absolute;
+            width: 8px;
+            height: 50px;
+            background: white;
+            top: -5px;
+            border-radius: 4px;
+            transition: left 0.5s;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .gauge-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+        }
+        .big-signal {
+            text-align: center;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .big-signal.bullish { background: linear-gradient(135deg, #1b5e20, #2e7d32); }
+        .big-signal.bearish { background: linear-gradient(135deg, #b71c1c, #c62828); }
+        .big-signal.neutral { background: linear-gradient(135deg, #f57f17, #fbc02d); }
+        .big-signal .label { font-size: 14px; opacity: 0.8; }
+        .big-signal .value { font-size: 48px; font-weight: bold; margin: 10px 0; }
+        .big-signal .direction { font-size: 24px; }
+        .signal-breakdown {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .signal-item {
+            background: #1a1a3e;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        .signal-item .name { font-size: 11px; color: #888; margin-bottom: 5px; }
+        .signal-item .score { font-size: 20px; font-weight: bold; }
+        .signal-item .bar {
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .signal-item .bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-tabs">
+            <button onclick="navigateTo('/')" class="nav-button">Chart</button>
+            <button onclick="navigateTo('/spread')" class="nav-button">Spread</button>
+            <button onclick="navigateTo('/vwap')" class="nav-button">VWAP</button>
+            <button onclick="navigateTo('/volume')" class="nav-button">Volume</button>
+            <button onclick="navigateTo('/liquidity')" class="nav-button">Liquidity</button>
+            <button onclick="navigateTo('/flow')" class="nav-button">Flow</button>
+            <button onclick="navigateTo('/accumulation')" class="nav-button">Accumulation</button>
+            <button onclick="navigateTo('/delta')" class="nav-button">Delta</button>
+            <button class="nav-button active">Signal</button>
+            <button onclick="navigateTo('/documentation')" class="nav-button">Docs</button>
+        </div>
+        <div class="controls">
+            <label style="display: flex; align-items: center; gap: 6px; color: #888; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="showPrice" onchange="togglePriceOverlay()" style="width: 16px; height: 16px; cursor: pointer;">
+                Price Overlay
+            </label>
+            <select id="tickerSelect" class="ticker-select" onchange="changeTicker()">
+                <option value="">Loading...</option>
+            </select>
+            <div class="date-nav">
+                <button id="prevDate" class="date-arrow" onclick="changeDate(-1)">◀</button>
+                <div id="currentDate" class="date-display">Loading...</div>
+                <button id="nextDate" class="date-arrow" onclick="changeDate(1)">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <h1>🎯 Combined Signal Analysis</h1>
+
+    <!-- Big Signal Display -->
+    <div id="big-signal" class="big-signal neutral">
+        <div class="label">COMBINED SIGNAL SCORE</div>
+        <div class="value" id="signal-value">0</div>
+        <div class="direction" id="signal-direction">⚪ NEUTRAL</div>
+    </div>
+
+    <!-- Signal Gauge -->
+    <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 14px; font-weight: bold;">Signal Strength</span>
+            <span id="signal-strength" style="font-size: 18px; font-weight: bold; color: #FF5722;">--</span>
+        </div>
+        <div class="signal-gauge">
+            <div id="signal-indicator" class="signal-indicator" style="left: 50%;"></div>
+        </div>
+        <div class="gauge-labels">
+            <span>🔴 Strong Sell (-100)</span>
+            <span>Neutral (0)</span>
+            <span>🟢 Strong Buy (+100)</span>
+        </div>
+    </div>
+
+    <!-- Signal Breakdown -->
+    <h3 style="margin-top: 25px; color: #FF5722;">📊 Signal Components</h3>
+    <div class="signal-breakdown">
+        <div class="signal-item">
+            <div class="name">BUY/SELL DELTA (40%)</div>
+            <div class="score" id="delta-score">--</div>
+            <div class="bar"><div id="delta-bar" class="bar-fill" style="width: 50%;"></div></div>
+        </div>
+        <div class="signal-item">
+            <div class="name">TICK DELTA (25%)</div>
+            <div class="score" id="tick-score">--</div>
+            <div class="bar"><div id="tick-bar" class="bar-fill" style="width: 50%;"></div></div>
+        </div>
+        <div class="signal-item">
+            <div class="name">ORDER BOOK (20%)</div>
+            <div class="score" id="book-score">--</div>
+            <div class="bar"><div id="book-bar" class="bar-fill" style="width: 50%;"></div></div>
+        </div>
+        <div class="signal-item">
+            <div class="name">TRADE-TO-MID (15%)</div>
+            <div class="score" id="mid-score">--</div>
+            <div class="bar"><div id="mid-bar" class="bar-fill" style="width: 50%;"></div></div>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="momentum">--</div>
+            <div class="stat-label">Momentum (Change Rate)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="cumulative">--</div>
+            <div class="stat-label">Cumulative Score</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="avg-signal">--</div>
+            <div class="stat-label">Average Signal</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="price-change">--</div>
+            <div class="stat-label">Price Change</div>
+        </div>
+    </div>
+
+    <div id="signal-chart" class="chart-container">
+        <div style="display: flex; justify-content: center; align-items: center; height: 350px; color: #666;">Loading chart...</div>
+    </div>
+    <div id="cumulative-chart" class="chart-container">
+        <div style="display: flex; justify-content: center; align-items: center; height: 350px; color: #666;">Loading chart...</div>
+    </div>
+    <div id="components-chart" class="chart-container">
+        <div style="display: flex; justify-content: center; align-items: center; height: 350px; color: #666;">Loading chart...</div>
+    </div>
+
+    <script>
+        let currentSymbol = new URLSearchParams(window.location.search).get('symbol') || 'AMD';
+        let availableDates = [];
+        let currentDateIndex = 0;
+        let lastData = null;
+        
+        console.log('Script starting, checking Plotly...');
+
+        // Check if Plotly loaded - with retry
+        function checkPlotly() {
+            if (typeof Plotly === 'undefined') {
+                console.error('Plotly not loaded yet, will retry...');
+                return false;
+            }
+            console.log('Plotly loaded successfully!');
+            return true;
+        }
+        
+        if (!checkPlotly()) {
+            // Retry after a delay
+            setTimeout(() => {
+                if (!checkPlotly()) {
+                    document.querySelectorAll('.chart-container').forEach(el => {
+                        el.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; height: 350px; color: #f44336;">Error: Chart library failed to load. Please refresh the page.</div>';
+                    });
+                }
+            }, 2000);
+        }
+
+        function navigateTo(path) {
+            const params = new URLSearchParams(window.location.search);
+            window.location.href = path + '?' + params.toString();
+        }
+
+        async function loadSymbols() {
+            const select = document.getElementById('tickerSelect');
+            try {
+                const response = await fetch('/api/symbols');
+                const symbols = await response.json();
+                select.innerHTML = symbols.map(s => 
+                    `<option value="${s}" ${s === currentSymbol ? 'selected' : ''}>${s}</option>`
+                ).join('');
+            } catch (e) {
+                console.error('Error loading symbols:', e);
+            }
+        }
+
+        async function loadDates() {
+            try {
+                const response = await fetch(`/api/dates?symbol=${currentSymbol}`);
+                const data = await response.json();
+                availableDates = data.dates || [];
+                currentDateIndex = 0;
+                updateDateDisplay();
+                loadData();
+            } catch (e) {
+                console.error('Error loading dates:', e);
+            }
+        }
+
+        function updateDateDisplay() {
+            const dateDisplay = document.getElementById('currentDate');
+            if (availableDates.length > 0) {
+                const date = availableDates[currentDateIndex];
+                const year = Math.floor(date / 10000);
+                const month = Math.floor((date % 10000) / 100);
+                const day = date % 100;
+                dateDisplay.textContent = `${month}/${day}/${year}`;
+            }
+            document.getElementById('prevDate').disabled = currentDateIndex >= availableDates.length - 1;
+            document.getElementById('nextDate').disabled = currentDateIndex <= 0;
+        }
+
+        function changeDate(direction) {
+            currentDateIndex -= direction;
+            if (currentDateIndex < 0) currentDateIndex = 0;
+            if (currentDateIndex >= availableDates.length) currentDateIndex = availableDates.length - 1;
+            updateDateDisplay();
+            loadData();
+        }
+
+        function changeTicker() {
+            currentSymbol = document.getElementById('tickerSelect').value;
+            const url = new URL(window.location);
+            url.searchParams.set('symbol', currentSymbol);
+            window.history.pushState({}, '', url);
+            loadDates();
+        }
+
+        function togglePriceOverlay() {
+            if (lastData) {
+                renderCharts(lastData);
+            }
+        }
+
+        function getSignalColor(score) {
+            if (score > 30) return '#4CAF50';
+            if (score > 10) return '#8BC34A';
+            if (score > -10) return '#FFC107';
+            if (score > -30) return '#FF9800';
+            return '#F44336';
+        }
+
+        function updateSignalBar(id, score) {
+            const bar = document.getElementById(id);
+            const pct = (score + 100) / 2; // Convert -100 to 100 => 0 to 100
+            bar.style.width = pct + '%';
+            bar.style.background = getSignalColor(score);
+        }
+
+        async function loadData() {
+            try {
+                const date = availableDates[currentDateIndex];
+                const response = await fetch(`/api/signal?symbol=${currentSymbol}&date=${date}`);
+                const data = await response.json();
+                
+                if (data.s !== 'ok') {
+                    console.error('No data available');
+                    return;
+                }
+
+                lastData = data;
+                renderCharts(data);
+            } catch (e) {
+                console.error('Error loading data:', e);
+            }
+        }
+
+        function renderCharts(data) {
+            console.log('renderCharts called with data:', data ? 'present' : 'missing');
+            
+            if (typeof Plotly === 'undefined') {
+                console.error('Plotly not available for rendering');
+                return;
+            }
+            
+            try {
+                const showPrice = document.getElementById('showPrice').checked;
+                const dates = data.t.map(t => new Date(t * 1000));
+                const n = data.combined_signal.length;
+                
+                console.log('Rendering charts with', n, 'data points');
+                
+                if (n === 0) {
+                    console.error('No data points to render');
+                    return;
+                }
+
+                // Get latest values
+                const currentSignal = data.combined_signal[n - 1];
+                const avgSignal = data.combined_signal.reduce((a, b) => a + b, 0) / n;
+                const deltaScore = data.delta_score[n - 1];
+                const tickScore = data.tick_score[n - 1];
+                const bookScore = data.book_score[n - 1];
+                const midScore = data.mid_score[n - 1];
+                const momentum = data.momentum[n - 1];
+                const cumulative = data.cumulative_signal[n - 1];
+            
+            // Price change
+            const firstPrice = data.last_price.find(p => p > 0) || 0;
+            const lastPrice = data.last_price[n - 1] || 0;
+            const priceChange = firstPrice > 0 ? ((lastPrice - firstPrice) / firstPrice * 100) : 0;
+
+            // Update big signal display
+            const bigSignal = document.getElementById('big-signal');
+            document.getElementById('signal-value').textContent = currentSignal.toFixed(1);
+            
+            if (currentSignal > 20) {
+                bigSignal.className = 'big-signal bullish';
+                document.getElementById('signal-direction').textContent = '🟢 BULLISH - BUY SIGNAL';
+            } else if (currentSignal < -20) {
+                bigSignal.className = 'big-signal bearish';
+                document.getElementById('signal-direction').textContent = '🔴 BEARISH - SELL SIGNAL';
+            } else {
+                bigSignal.className = 'big-signal neutral';
+                document.getElementById('signal-direction').textContent = '⚪ NEUTRAL - HOLD';
+            }
+
+            // Update gauge
+            const indicatorPos = (currentSignal + 100) / 200 * 100;
+            document.getElementById('signal-indicator').style.left = `calc(${indicatorPos}% - 4px)`;
+            document.getElementById('signal-strength').textContent = Math.abs(currentSignal).toFixed(1) + '%';
+            document.getElementById('signal-strength').style.color = getSignalColor(currentSignal);
+
+            // Update component scores
+            document.getElementById('delta-score').textContent = deltaScore.toFixed(1);
+            document.getElementById('delta-score').style.color = getSignalColor(deltaScore);
+            updateSignalBar('delta-bar', deltaScore);
+
+            document.getElementById('tick-score').textContent = tickScore.toFixed(1);
+            document.getElementById('tick-score').style.color = getSignalColor(tickScore);
+            updateSignalBar('tick-bar', tickScore);
+
+            document.getElementById('book-score').textContent = bookScore.toFixed(1);
+            document.getElementById('book-score').style.color = getSignalColor(bookScore);
+            updateSignalBar('book-bar', bookScore);
+
+            document.getElementById('mid-score').textContent = midScore.toFixed(1);
+            document.getElementById('mid-score').style.color = getSignalColor(midScore);
+            updateSignalBar('mid-bar', midScore);
+
+            // Update stats
+            document.getElementById('momentum').textContent = momentum.toFixed(2);
+            document.getElementById('momentum').className = 'stat-value ' + (momentum > 0 ? 'bullish' : momentum < 0 ? 'bearish' : 'neutral');
+
+            document.getElementById('cumulative').textContent = cumulative.toFixed(0);
+            document.getElementById('cumulative').className = 'stat-value ' + (cumulative > 0 ? 'bullish' : cumulative < 0 ? 'bearish' : 'neutral');
+
+            document.getElementById('avg-signal').textContent = avgSignal.toFixed(1);
+            document.getElementById('avg-signal').className = 'stat-value ' + (avgSignal > 5 ? 'bullish' : avgSignal < -5 ? 'bearish' : 'neutral');
+
+            document.getElementById('price-change').textContent = (priceChange >= 0 ? '+' : '') + priceChange.toFixed(2) + '%';
+            document.getElementById('price-change').className = 'stat-value ' + (priceChange > 0 ? 'bullish' : priceChange < 0 ? 'bearish' : 'neutral');
+
+            // Chart 1: Combined Signal over time
+            const signalColors = data.combined_signal.map(s => getSignalColor(s));
+            const traces1 = [{
+                x: dates,
+                y: data.combined_signal,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Combined Signal',
+                line: { color: '#FF5722', width: 2 },
+                marker: { color: signalColors, size: 4 }
+            }, {
+                x: dates,
+                y: Array(n).fill(0),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Zero Line',
+                line: { color: '#666', width: 1, dash: 'dash' }
+            }];
+
+            if (showPrice && data.last_price) {
+                traces1.push({
+                    x: dates,
+                    y: data.last_price,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Price',
+                    yaxis: 'y2',
+                    line: { color: '#FFD700', width: 2 }
+                });
+            }
+
+            // Build layout object - only include yaxis2 if showPrice is true
+            const layout1 = {
+                title: 'Combined Signal Score (-100 to +100)',
+                xaxis: { title: '' },
+                yaxis: { title: 'Signal', range: [-100, 100], side: 'left' },
+                plot_bgcolor: '#1a1a2e',
+                paper_bgcolor: '#1a1a2e',
+                font: { color: '#fff' },
+                margin: { t: 40, r: showPrice ? 60 : 30, b: 40, l: 60 },
+                shapes: [{
+                    type: 'rect',
+                    x0: dates[0],
+                    x1: dates[n-1],
+                    y0: 20,
+                    y1: 100,
+                    fillcolor: 'rgba(76, 175, 80, 0.1)',
+                    line: { width: 0 }
+                }, {
+                    type: 'rect',
+                    x0: dates[0],
+                    x1: dates[n-1],
+                    y0: -100,
+                    y1: -20,
+                    fillcolor: 'rgba(244, 67, 54, 0.1)',
+                    line: { width: 0 }
+                }]
+            };
+            if (showPrice) {
+                layout1.yaxis2 = { title: 'Price', side: 'right', overlaying: 'y' };
+            }
+
+            Plotly.newPlot('signal-chart', traces1, layout1, {responsive: true});
+
+            // Chart 2: Cumulative Signal
+            const traces2 = [{
+                x: dates,
+                y: data.cumulative_signal,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Cumulative Signal',
+                fill: 'tozeroy',
+                line: { color: '#9C27B0', width: 2 },
+                fillcolor: 'rgba(156, 39, 176, 0.3)'
+            }];
+
+            if (showPrice && data.last_price) {
+                traces2.push({
+                    x: dates,
+                    y: data.last_price,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Price',
+                    yaxis: 'y2',
+                    line: { color: '#FFD700', width: 2 }
+                });
+            }
+
+            // Build layout object - only include yaxis2 if showPrice is true
+            const layout2 = {
+                title: 'Cumulative Signal Score',
+                xaxis: { title: '' },
+                yaxis: { title: 'Cumulative Score', side: 'left' },
+                plot_bgcolor: '#1a1a2e',
+                paper_bgcolor: '#1a1a2e',
+                font: { color: '#fff' },
+                margin: { t: 40, r: showPrice ? 60 : 30, b: 40, l: 60 }
+            };
+            if (showPrice) {
+                layout2.yaxis2 = { title: 'Price', side: 'right', overlaying: 'y' };
+            }
+
+            Plotly.newPlot('cumulative-chart', traces2, layout2, {responsive: true});
+
+            // Chart 3: Component breakdown
+            const traces3 = [
+                { x: dates, y: data.delta_score, type: 'scatter', mode: 'lines', name: 'Delta Score (40%)', line: { color: '#4CAF50', width: 1 } },
+                { x: dates, y: data.tick_score, type: 'scatter', mode: 'lines', name: 'Tick Score (25%)', line: { color: '#2196F3', width: 1 } },
+                { x: dates, y: data.book_score, type: 'scatter', mode: 'lines', name: 'Book Score (20%)', line: { color: '#FF9800', width: 1 } },
+                { x: dates, y: data.mid_score, type: 'scatter', mode: 'lines', name: 'Mid Score (15%)', line: { color: '#9C27B0', width: 1 } }
+            ];
+
+            Plotly.newPlot('components-chart', traces3, {
+                title: 'Signal Components Breakdown',
+                xaxis: { title: '' },
+                yaxis: { title: 'Score', range: [-100, 100] },
+                plot_bgcolor: '#1a1a2e',
+                paper_bgcolor: '#1a1a2e',
+                font: { color: '#fff' },
+                margin: { t: 40, r: 30, b: 40, l: 60 },
+                legend: { orientation: 'h', y: -0.15 }
+            }, {responsive: true});
+            
+                console.log('All charts rendered successfully!');
+            
+            } catch (err) {
+                console.error('Error rendering charts:', err);
+                document.querySelectorAll('.chart-container').forEach(el => {
+                    el.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; height: 350px; color: #f44336;">Chart Error: ' + err.message + '</div>';
+                });
+            }
+        }
+
+        // Initialize
+        console.log('Initializing page...');
+        loadSymbols();
+        loadDates();
+    </script>
+</body>
+</html>

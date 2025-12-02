@@ -4,30 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liquidity Analysis - Scanner WebApp</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         body { 
-            font-family: Arial, sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0; 
             padding: 20px; 
+            padding-top: 80px;
             background: #0f0f23; 
             color: white; 
         }
-        .nav-tabs {
-            margin-bottom: 20px;
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
             border-bottom: 1px solid #333;
         }
+        .nav-tabs { display: flex; gap: 8px; }
         .nav-button {
             background: #1a1a3e;
             color: #00d4aa;
             border: none;
-            padding: 10px 20px;
-            margin-right: 5px;
+            padding: 8px 14px;
             cursor: pointer;
-            border-radius: 5px 5px 0 0;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
         }
         .nav-button:hover { background: #2a2a4e; }
-        .nav-button.active { background: #9C27B0; color: white; }
+        .nav-button.active { background: #00d4aa; color: #0f0f23; }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ticker-select, .date-display {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .ticker-select { min-width: 100px; cursor: pointer; }
+        .ticker-select:focus { outline: none; border-color: #00d4aa; }
+        .date-nav { display: flex; align-items: center; gap: 6px; }
+        .date-arrow {
+            background: #2a2a4e;
+            border: none;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .date-arrow:hover { background: #00d4aa; color: #000; }
+        .date-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
         .chart-container { 
             background: white; 
             border-radius: 8px; 
@@ -49,27 +91,47 @@
         .stat-value {
             font-size: 24px;
             font-weight: bold;
-            color: #9C27B0;
+            color: #00d4aa;
         }
         .stat-label {
             font-size: 12px;
             color: #888;
             margin-top: 5px;
         }
+        h1 { margin-top: 0; }
     </style>
 </head>
 <body>
-    <h1>📊 Liquidity & Market Depth Analysis</h1>
-    
-    <div class="nav-tabs">
-        <button onclick="window.location.href='/'" class="nav-button">Chart</button>
-        <button onclick="window.location.href='/spread?symbol=AAPL'" class="nav-button">Spread Analysis</button>
-        <button onclick="window.location.href='/vwap?symbol=AAPL'" class="nav-button">VWAP Analysis</button>
-        <button onclick="window.location.href='/volume?symbol=AAPL'" class="nav-button">Volume Analysis</button>
-        <button class="nav-button active">Liquidity Analysis</button>
-        <button onclick="window.location.href='/flow?symbol=AAPL'" class="nav-button">Order Flow</button>
+    <div class="header">
+        <div class="nav-tabs">
+            <button onclick="navigateTo('/')" class="nav-button">Chart</button>
+            <button onclick="navigateTo('/spread')" class="nav-button">Spread</button>
+            <button onclick="navigateTo('/vwap')" class="nav-button">VWAP</button>
+            <button onclick="navigateTo('/volume')" class="nav-button">Volume</button>
+            <button class="nav-button active">Liquidity</button>
+            <button onclick="navigateTo('/flow')" class="nav-button">Flow</button>
+            <button onclick="navigateTo('/accumulation')" class="nav-button">Accumulation</button>
+            <button onclick="navigateTo('/delta')" class="nav-button">Delta</button>
+            <button onclick="navigateTo('/signal')" class="nav-button">Signal</button>
+            <button onclick="navigateTo('/documentation')" class="nav-button">Docs</button>
+        </div>
+        <div class="controls">
+            <label style="display: flex; align-items: center; gap: 6px; color: #888; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="showPrice" onchange="togglePriceOverlay()" style="width: 16px; height: 16px; cursor: pointer;">
+                Price Overlay
+            </label>
+            <select id="tickerSelect" class="ticker-select" onchange="changeTicker()">
+                <option value="">Loading...</option>
+            </select>
+            <div class="date-nav">
+                <button id="prevDate" class="date-arrow" onclick="changeDate(-1)">◀</button>
+                <div id="currentDate" class="date-display">Loading...</div>
+                <button id="nextDate" class="date-arrow" onclick="changeDate(1)">▶</button>
+            </div>
+        </div>
     </div>
 
+    <h1>📊 Liquidity & Market Depth Analysis</h1>
     <div class="stats-grid" id="stats-container">
         <div class="stat-card">
             <div class="stat-value" id="volatility-intensity">Loading...</div>
@@ -101,10 +163,19 @@
     <div class="chart-container" id="quotes-chart"></div>
 
     <script>
+        let lastData = null;
+
+        function togglePriceOverlay() {
+            if (lastData) {
+                renderCharts(lastData);
+            }
+        }
+
         async function loadLiquidityData() {
             try {
                 console.log('🔄 Loading liquidity data...');
-                const response = await fetch('/api/liquidity?symbol={{ symbol }}');
+                const date = availableDates[currentDateIndex];
+                const response = await fetch(`/api/liquidity?symbol=${currentSymbol}${date ? '&date=' + date : ''}`);
                 const data = await response.json();
                 
                 if (data.s !== "ok") {
@@ -153,100 +224,9 @@
                 document.getElementById('depth-stability').textContent = `${depthStability}%`;
                 document.getElementById('fair-value-dev').textContent = `${fairValueDev}bp`;
 
-                // Create bid/ask size chart
-                const bidSizeTrace = {
-                    x: dates,
-                    y: data.open_bid_size,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Bid Size',
-                    line: { color: '#4CAF50', width: 2 }
-                };
-
-                const askSizeTrace = {
-                    x: dates,
-                    y: data.open_ask_size,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Ask Size',
-                    line: { color: '#F44336', width: 2 }
-                };
-
-                const sizeLayout = {
-                    title: 'Bid/Ask Size at Open',
-                    paper_bgcolor: 'white',
-                    plot_bgcolor: 'white',
-                    font: { color: 'black' },
-                    xaxis: { 
-                        title: 'Time',
-                        gridcolor: '#e6e6e6'
-                    },
-                    yaxis: { 
-                        title: 'Size (Shares)',
-                        gridcolor: '#e6e6e6'
-                    },
-                    margin: { t: 50, r: 50, b: 50, l: 50 },
-                    hovermode: 'x unified'
-                };
-
-                Plotly.newPlot('size-chart', [bidSizeTrace, askSizeTrace], sizeLayout, {responsive: true});
-
-                // Create NBBO quote activity chart
-                const quotesTrace = {
-                    x: dates,
-                    y: data.nbbo_quote_count,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'NBBO Quote Count',
-                    line: { color: '#9C27B0', width: 2 },
-                    fill: 'tozeroy',
-                    fillcolor: 'rgba(156, 39, 176, 0.3)'
-                };
-
-                const timeWeightBidTrace = {
-                    x: dates,
-                    y: data.time_weight_bid,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Time-Weighted Bid',
-                    line: { color: '#00BCD4', width: 1.5 },
-                    yaxis: 'y2'
-                };
-
-                const timeWeightAskTrace = {
-                    x: dates,
-                    y: data.time_weight_ask,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Time-Weighted Ask',
-                    line: { color: '#FF5722', width: 1.5 },
-                    yaxis: 'y2'
-                };
-
-                const quotesLayout = {
-                    title: 'Quote Activity & Time-Weighted Prices',
-                    paper_bgcolor: 'white',
-                    plot_bgcolor: 'white',
-                    font: { color: 'black' },
-                    xaxis: { 
-                        title: 'Time',
-                        gridcolor: '#e6e6e6'
-                    },
-                    yaxis: { 
-                        title: 'Quote Count',
-                        gridcolor: '#e6e6e6'
-                    },
-                    yaxis2: {
-                        title: 'Price ($)',
-                        overlaying: 'y',
-                        side: 'right',
-                        gridcolor: '#e6e6e6'
-                    },
-                    margin: { t: 50, r: 70, b: 50, l: 50 },
-                    hovermode: 'x unified'
-                };
-
-                Plotly.newPlot('quotes-chart', [quotesTrace, timeWeightBidTrace, timeWeightAskTrace], quotesLayout, {responsive: true});
+                // Store data and render charts
+                lastData = { dates, data };
+                renderCharts(lastData);
 
                 console.log('✅ Liquidity analysis loaded successfully');
                 console.log(`📊 Liquidity Microstructure Metrics:`);
@@ -262,8 +242,209 @@
             }
         }
 
+        function renderCharts({ dates, data }) {
+            const showPrice = document.getElementById('showPrice').checked;
+
+            // Create bid/ask size chart
+            const bidSizeTrace = {
+                x: dates,
+                y: data.open_bid_size,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Bid Size',
+                line: { color: '#4CAF50', width: 2 }
+            };
+
+            const askSizeTrace = {
+                x: dates,
+                y: data.open_ask_size,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Ask Size',
+                line: { color: '#F44336', width: 2 }
+            };
+
+            const priceTrace1 = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: '#FFC107', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            const sizeLayout = {
+                title: 'Bid/Ask Size at Open',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { 
+                    title: 'Time',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis: { 
+                    title: 'Size (Shares)',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis2: {
+                    title: 'Price',
+                    overlaying: 'y',
+                    side: 'right',
+                    showgrid: false
+                },
+                margin: { t: 50, r: 70, b: 50, l: 50 },
+                hovermode: 'x unified'
+            };
+
+            Plotly.newPlot('size-chart', [bidSizeTrace, askSizeTrace, priceTrace1], sizeLayout, {responsive: true});
+
+            // Create NBBO quote activity chart
+            const quotesTrace = {
+                x: dates,
+                y: data.nbbo_quote_count,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'NBBO Quote Count',
+                line: { color: '#9C27B0', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(156, 39, 176, 0.3)'
+            };
+
+            const timeWeightBidTrace = {
+                x: dates,
+                y: data.time_weight_bid,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Time-Weighted Bid',
+                line: { color: '#00BCD4', width: 1.5 },
+                yaxis: 'y2'
+            };
+
+            const timeWeightAskTrace = {
+                x: dates,
+                y: data.time_weight_ask,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Time-Weighted Ask',
+                line: { color: '#FF5722', width: 1.5 },
+                yaxis: 'y2'
+            };
+
+            const priceTrace2 = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: '#FFC107', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            const quotesLayout = {
+                title: 'Quote Activity & Time-Weighted Prices',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { 
+                    title: 'Time',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis: { 
+                    title: 'Quote Count',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis2: {
+                    title: 'Price ($)',
+                    overlaying: 'y',
+                    side: 'right',
+                    gridcolor: '#e6e6e6',
+                    showgrid: false
+                },
+                margin: { t: 50, r: 70, b: 50, l: 50 },
+                hovermode: 'x unified'
+            };
+
+            Plotly.newPlot('quotes-chart', [quotesTrace, timeWeightBidTrace, timeWeightAskTrace, priceTrace2], quotesLayout, {responsive: true});
+        }
+
         // Load data when page loads
-        window.addEventListener('DOMContentLoaded', loadLiquidityData);
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initControls();
+            loadLiquidityData();
+        });
+
+        let currentSymbol = "{{ symbol }}";
+        let availableDates = [];
+        let currentDateIndex = 0;
+
+        function formatDate(dateInt) {
+            const str = String(dateInt);
+            return `${str.substring(4,6)}/${str.substring(6,8)}/${str.substring(0,4)}`;
+        }
+
+        function navigateTo(path) {
+            const date = availableDates[currentDateIndex];
+            window.location.href = `${path}?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+        }
+
+        async function initControls() {
+            const tickersRes = await fetch('/api/symbols');
+            const tickers = await tickersRes.json();
+            const select = document.getElementById('tickerSelect');
+            select.innerHTML = tickers.map(t => 
+                `<option value="${t}" ${t === currentSymbol ? 'selected' : ''}>${t}</option>`
+            ).join('');
+            
+            const datesRes = await fetch(`/api/dates?symbol=${currentSymbol}`);
+            const datesData = await datesRes.json();
+            availableDates = datesData.dates || [];
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlDate = urlParams.get('date');
+            if (urlDate) {
+                const idx = availableDates.indexOf(parseInt(urlDate));
+                if (idx >= 0) currentDateIndex = idx;
+            }
+            updateDateDisplay();
+        }
+
+        function updateDateDisplay() {
+            const dateDisplay = document.getElementById('currentDate');
+            const prevBtn = document.getElementById('prevDate');
+            const nextBtn = document.getElementById('nextDate');
+            if (availableDates.length === 0) {
+                dateDisplay.textContent = 'No data';
+                prevBtn.disabled = nextBtn.disabled = true;
+                return;
+            }
+            dateDisplay.textContent = formatDate(availableDates[currentDateIndex]);
+            prevBtn.disabled = currentDateIndex >= availableDates.length - 1;
+            nextBtn.disabled = currentDateIndex <= 0;
+        }
+
+        function changeDate(dir) {
+            const newIdx = currentDateIndex - dir;
+            if (newIdx >= 0 && newIdx < availableDates.length) {
+                currentDateIndex = newIdx;
+                updateDateDisplay();
+                loadLiquidityData();
+            }
+        }
+
+        function changeTicker() {
+            currentSymbol = document.getElementById('tickerSelect').value;
+            fetch(`/api/dates?symbol=${currentSymbol}`)
+                .then(r => r.json())
+                .then(data => {
+                    availableDates = data.dates || [];
+                    currentDateIndex = 0;
+                    updateDateDisplay();
+                    loadLiquidityData();
+                });
+        }
     </script>
 </body>
 </html>

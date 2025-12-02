@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accumulation Analysis - Scanner WebApp</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            padding: 20px; 
+            padding-top: 80px;
+            background: #0f0f23; 
+            color: white; 
+        }
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 1px solid #333;
+        }
+        .nav-tabs { display: flex; gap: 8px; }
+        .nav-button {
+            background: #1a1a3e;
+            color: #00d4aa;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .nav-button:hover { background: #2a2a4e; }
+        .nav-button.active { background: #00d4aa; color: #0f0f23; }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ticker-select, .date-display {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .ticker-select { min-width: 100px; cursor: pointer; }
+        .ticker-select:focus { outline: none; border-color: #00d4aa; }
+        .date-nav { display: flex; align-items: center; gap: 6px; }
+        .date-arrow {
+            background: #2a2a4e;
+            border: none;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .date-arrow:hover { background: #00d4aa; color: #000; }
+        .date-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+        .date-display { min-width: 90px; text-align: center; font-weight: 500; }
+        .chart-container { 
+            background: white; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            height: 400px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #1a1a3e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00d4aa;
+        }
+        .stat-value.bullish { color: #4CAF50; }
+        .stat-value.bearish { color: #F44336; }
+        .stat-value.neutral { color: #FFC107; }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        h1 { margin-top: 0; }
+        .pressure-gauge {
+            background: linear-gradient(90deg, #F44336 0%, #FFC107 50%, #4CAF50 100%);
+            height: 20px;
+            border-radius: 10px;
+            position: relative;
+            margin: 10px 0;
+        }
+        .pressure-indicator {
+            position: absolute;
+            width: 4px;
+            height: 30px;
+            background: white;
+            top: -5px;
+            border-radius: 2px;
+            transition: left 0.3s;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .gauge-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #888;
+        }
+        .section-title {
+            font-size: 16px;
+            color: #00d4aa;
+            margin: 25px 0 15px 0;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav-tabs">
+            <button onclick="navigateTo('/')" class="nav-button">Chart</button>
+            <button onclick="navigateTo('/spread')" class="nav-button">Spread</button>
+            <button onclick="navigateTo('/vwap')" class="nav-button">VWAP</button>
+            <button onclick="navigateTo('/volume')" class="nav-button">Volume</button>
+            <button onclick="navigateTo('/liquidity')" class="nav-button">Liquidity</button>
+            <button onclick="navigateTo('/flow')" class="nav-button">Flow</button>
+            <button class="nav-button active">Accumulation</button>
+            <button onclick="navigateTo('/delta')" class="nav-button">Delta</button>
+            <button onclick="navigateTo('/signal')" class="nav-button">Signal</button>
+            <button onclick="navigateTo('/documentation')" class="nav-button">Docs</button>
+        </div>
+        <div class="controls">
+            <label style="display: flex; align-items: center; gap: 6px; color: #888; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="showPrice" onchange="togglePriceOverlay()" style="width: 16px; height: 16px; cursor: pointer;">
+                Price Overlay
+            </label>
+            <select id="tickerSelect" class="ticker-select" onchange="changeTicker()">
+                <option value="">Loading...</option>
+            </select>
+            <div class="date-nav">
+                <button id="prevDate" class="date-arrow" onclick="changeDate(-1)">◀</button>
+                <div id="currentDate" class="date-display">Loading...</div>
+                <button id="nextDate" class="date-arrow" onclick="changeDate(1)">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <h1>📈 Accumulation & Buying Pressure Analysis</h1>
+
+    <!-- Main Pressure Gauge -->
+    <div class="stat-card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 16px; font-weight: bold;">Buy/Sell Pressure Gauge</span>
+            <span id="pressure-value" class="stat-value">--</span>
+        </div>
+        <div class="pressure-gauge">
+            <div id="pressure-indicator" class="pressure-indicator" style="left: 50%;"></div>
+        </div>
+        <div class="gauge-labels">
+            <span>🔴 Strong Selling</span>
+            <span>Neutral</span>
+            <span>🟢 Strong Buying</span>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="cumulative-delta">--</div>
+            <div class="stat-label">Cumulative Delta</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="buy-sell-ratio">--</div>
+            <div class="stat-label">Buy/Sell Ratio</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="aggressive-buying">--</div>
+            <div class="stat-label">Aggressive Buying %</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="uptick-ratio">--</div>
+            <div class="stat-label">Uptick Ratio</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="bid-support">--</div>
+            <div class="stat-label">Bid Support Ratio</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="accumulation-score">--</div>
+            <div class="stat-label">Accumulation Score</div>
+        </div>
+    </div>
+
+    <div class="section-title">📊 Cumulative Delta (Running Buy-Sell Difference)</div>
+    <div class="chart-container" id="delta-chart"></div>
+
+    <div class="section-title">🔥 Aggressive vs Passive Orders</div>
+    <div class="chart-container" id="aggressive-chart"></div>
+
+    <div class="section-title">📉 Uptick/Downtick Momentum</div>
+    <div class="chart-container" id="momentum-chart"></div>
+
+    <div class="section-title">💰 Order Book Imbalance (Bid vs Ask Size)</div>
+    <div class="chart-container" id="imbalance-chart"></div>
+
+    <script>
+        let currentSymbol = "{{ symbol }}";
+        let availableDates = [];
+        let currentDateIndex = 0;
+
+        function formatDate(dateInt) {
+            const str = String(dateInt);
+            return `${str.substring(4,6)}/${str.substring(6,8)}/${str.substring(0,4)}`;
+        }
+
+        function navigateTo(path) {
+            const date = availableDates[currentDateIndex];
+            window.location.href = `${path}?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+        }
+
+        async function initControls() {
+            const tickersRes = await fetch('/api/symbols');
+            const tickers = await tickersRes.json();
+            const select = document.getElementById('tickerSelect');
+            select.innerHTML = tickers.map(t => 
+                `<option value="${t}" ${t === currentSymbol ? 'selected' : ''}>${t}</option>`
+            ).join('');
+            
+            const datesRes = await fetch(`/api/dates?symbol=${currentSymbol}`);
+            const datesData = await datesRes.json();
+            availableDates = datesData.dates || [];
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlDate = urlParams.get('date');
+            if (urlDate) {
+                const idx = availableDates.indexOf(parseInt(urlDate));
+                if (idx >= 0) currentDateIndex = idx;
+            }
+            updateDateDisplay();
+        }
+
+        function updateDateDisplay() {
+            const dateDisplay = document.getElementById('currentDate');
+            const prevBtn = document.getElementById('prevDate');
+            const nextBtn = document.getElementById('nextDate');
+            if (availableDates.length === 0) {
+                dateDisplay.textContent = 'No data';
+                prevBtn.disabled = nextBtn.disabled = true;
+                return;
+            }
+            dateDisplay.textContent = formatDate(availableDates[currentDateIndex]);
+            prevBtn.disabled = currentDateIndex >= availableDates.length - 1;
+            nextBtn.disabled = currentDateIndex <= 0;
+        }
+
+        let lastData = null; // Store data for re-rendering
+
+        function togglePriceOverlay() {
+            if (lastData) {
+                renderCharts(lastData);
+            }
+        }
+
+        function changeDate(dir) {
+            const newIdx = currentDateIndex - dir;
+            if (newIdx >= 0 && newIdx < availableDates.length) {
+                currentDateIndex = newIdx;
+                updateDateDisplay();
+                loadAccumulationData();
+            }
+        }
+
+        function changeTicker() {
+            currentSymbol = document.getElementById('tickerSelect').value;
+            fetch(`/api/dates?symbol=${currentSymbol}`)
+                .then(r => r.json())
+                .then(data => {
+                    availableDates = data.dates || [];
+                    currentDateIndex = 0;
+                    updateDateDisplay();
+                    loadAccumulationData();
+                });
+        }
+
+        async function loadAccumulationData() {
+            try {
+                const date = availableDates[currentDateIndex];
+                const response = await fetch(`/api/accumulation?symbol=${currentSymbol}${date ? '&date=' + date : ''}`);
+                const data = await response.json();
+                
+                if (data.s !== "ok") {
+                    throw new Error('No data available');
+                }
+
+                const dates = data.t.map(timestamp => new Date(timestamp * 1000));
+                
+                // Calculate summary statistics
+                const totalBuyVolume = data.buy_volume.reduce((a, b) => a + b, 0);
+                const totalSellVolume = data.sell_volume.reduce((a, b) => a + b, 0);
+                const totalAggressiveBuy = data.trade_at_ask.reduce((a, b) => a + b, 0);
+                const totalAggressiveSell = data.trade_at_bid.reduce((a, b) => a + b, 0);
+                const totalUptick = data.uptick_volume.reduce((a, b) => a + b, 0);
+                const totalDowntick = data.downtick_volume.reduce((a, b) => a + b, 0);
+                const avgBidSize = data.open_bid_size.reduce((a, b) => a + b, 0) / data.open_bid_size.length;
+                const avgAskSize = data.open_ask_size.reduce((a, b) => a + b, 0) / data.open_ask_size.length;
+                
+                // Calculate metrics
+                const buySellRatio = totalSellVolume > 0 ? (totalBuyVolume / totalSellVolume).toFixed(2) : '∞';
+                const aggressiveBuyPct = ((totalAggressiveBuy / (totalAggressiveBuy + totalAggressiveSell)) * 100).toFixed(1);
+                const uptickRatio = ((totalUptick / (totalUptick + totalDowntick)) * 100).toFixed(1);
+                const bidSupportRatio = (avgBidSize / (avgBidSize + avgAskSize) * 100).toFixed(1);
+                const finalDelta = data.cumulative_delta[data.cumulative_delta.length - 1];
+                
+                // Accumulation Score (0-100, combining all metrics)
+                const deltaScore = Math.min(Math.max((finalDelta / 1000) + 50, 0), 100);
+                const ratioScore = Math.min(parseFloat(buySellRatio) * 50, 100);
+                const uptickScore = parseFloat(uptickRatio);
+                const bidScore = parseFloat(bidSupportRatio);
+                const accumulationScore = ((deltaScore + ratioScore + uptickScore + bidScore) / 4).toFixed(0);
+                
+                // Pressure gauge (-100 to 100)
+                const pressure = ((totalBuyVolume - totalSellVolume) / (totalBuyVolume + totalSellVolume) * 100);
+                const pressurePosition = ((pressure + 100) / 2); // Convert to 0-100 for gauge
+                
+                // Update stats
+                document.getElementById('cumulative-delta').textContent = finalDelta.toLocaleString();
+                document.getElementById('cumulative-delta').className = 'stat-value ' + (finalDelta > 0 ? 'bullish' : finalDelta < 0 ? 'bearish' : 'neutral');
+                
+                document.getElementById('buy-sell-ratio').textContent = buySellRatio;
+                document.getElementById('buy-sell-ratio').className = 'stat-value ' + (parseFloat(buySellRatio) > 1 ? 'bullish' : 'bearish');
+                
+                document.getElementById('aggressive-buying').textContent = aggressiveBuyPct + '%';
+                document.getElementById('aggressive-buying').className = 'stat-value ' + (parseFloat(aggressiveBuyPct) > 50 ? 'bullish' : 'bearish');
+                
+                document.getElementById('uptick-ratio').textContent = uptickRatio + '%';
+                document.getElementById('uptick-ratio').className = 'stat-value ' + (parseFloat(uptickRatio) > 50 ? 'bullish' : 'bearish');
+                
+                document.getElementById('bid-support').textContent = bidSupportRatio + '%';
+                document.getElementById('bid-support').className = 'stat-value ' + (parseFloat(bidSupportRatio) > 50 ? 'bullish' : 'bearish');
+                
+                document.getElementById('accumulation-score').textContent = accumulationScore;
+                document.getElementById('accumulation-score').className = 'stat-value ' + (parseInt(accumulationScore) > 60 ? 'bullish' : parseInt(accumulationScore) < 40 ? 'bearish' : 'neutral');
+                
+                // Update pressure gauge
+                document.getElementById('pressure-indicator').style.left = pressurePosition + '%';
+                const pressureText = pressure > 0 ? '+' + pressure.toFixed(1) + '%' : pressure.toFixed(1) + '%';
+                document.getElementById('pressure-value').textContent = pressureText;
+                document.getElementById('pressure-value').className = 'stat-value ' + (pressure > 10 ? 'bullish' : pressure < -10 ? 'bearish' : 'neutral');
+
+                // Store data and render charts
+                lastData = { dates, data };
+                renderCharts(lastData);
+
+                console.log('✅ Accumulation analysis loaded');
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                document.getElementById('cumulative-delta').textContent = 'Error';
+            }
+        }
+
+        function renderCharts({ dates, data }) {
+            const showPrice = document.getElementById('showPrice').checked;
+
+            // 1. Cumulative Delta Chart
+            const deltaTrace = {
+                x: dates,
+                y: data.cumulative_delta,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Cumulative Delta',
+                line: { color: '#00d4aa', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(0, 212, 170, 0.2)'
+            };
+            
+            const priceTrace = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: '#FFC107', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            Plotly.newPlot('delta-chart', [deltaTrace, priceTrace], {
+                title: 'Cumulative Delta' + (showPrice ? ' vs Price' : ''),
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { title: 'Time', gridcolor: '#e6e6e6' },
+                yaxis: { title: 'Cumulative Delta', gridcolor: '#e6e6e6' },
+                yaxis2: { title: 'Price', overlaying: 'y', side: 'right', showgrid: false },
+                margin: { t: 50, r: 70, b: 50, l: 70 },
+                hovermode: 'x unified',
+                showlegend: true
+            }, {responsive: true});
+
+            // 2. Aggressive vs Passive Chart
+            const aggBuyTrace = {
+                x: dates,
+                y: data.trade_at_ask,
+                type: 'bar',
+                name: 'Aggressive Buy (at Ask)',
+                marker: { color: '#4CAF50' }
+            };
+            
+            const passBuyTrace = {
+                x: dates,
+                y: data.trade_at_mid_ask,
+                type: 'bar',
+                name: 'Passive Buy (Bid-Mid)',
+                marker: { color: '#81C784' }
+            };
+            
+            const aggSellTrace = {
+                x: dates,
+                y: data.trade_at_bid.map(v => -v),
+                type: 'bar',
+                name: 'Aggressive Sell (at Bid)',
+                marker: { color: '#F44336' }
+            };
+            
+            const passSellTrace = {
+                x: dates,
+                y: data.trade_at_bid_mid.map(v => -v),
+                type: 'bar',
+                name: 'Passive Sell (Mid-Ask)',
+                marker: { color: '#E57373' }
+            };
+
+            const priceTrace2 = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: 'rgba(255, 193, 7, 0.8)', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            Plotly.newPlot('aggressive-chart', [aggBuyTrace, passBuyTrace, aggSellTrace, passSellTrace, priceTrace2], {
+                title: 'Aggressive vs Passive Order Flow',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                barmode: 'relative',
+                xaxis: { title: 'Time', gridcolor: '#e6e6e6' },
+                yaxis: { title: 'Volume (+ Buy / - Sell)', gridcolor: '#e6e6e6' },
+                yaxis2: { title: 'Price', overlaying: 'y', side: 'right', showgrid: false },
+                margin: { t: 50, r: 70, b: 50, l: 70 },
+                hovermode: 'x unified'
+            }, {responsive: true});
+
+            // 3. Uptick/Downtick Momentum Chart
+            const uptickTrace = {
+                x: dates,
+                y: data.uptick_volume,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Uptick Volume',
+                line: { color: '#4CAF50', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(76, 175, 80, 0.3)'
+            };
+            
+            const downtickTrace = {
+                x: dates,
+                y: data.downtick_volume.map(v => -v),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Downtick Volume',
+                line: { color: '#F44336', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(244, 67, 54, 0.3)'
+            };
+
+            const priceTrace3 = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: 'rgba(255, 193, 7, 0.8)', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            Plotly.newPlot('momentum-chart', [uptickTrace, downtickTrace, priceTrace3], {
+                title: 'Uptick vs Downtick Volume (Momentum)',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { title: 'Time', gridcolor: '#e6e6e6' },
+                yaxis: { title: 'Volume', gridcolor: '#e6e6e6' },
+                yaxis2: { title: 'Price', overlaying: 'y', side: 'right', showgrid: false },
+                margin: { t: 50, r: 70, b: 50, l: 70 },
+                hovermode: 'x unified'
+            }, {responsive: true});
+
+            // 4. Order Book Imbalance Chart
+            const bidSizeTrace = {
+                x: dates,
+                y: data.open_bid_size,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Bid Size (Support)',
+                line: { color: '#4CAF50', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(76, 175, 80, 0.2)'
+            };
+            
+            const askSizeTrace = {
+                x: dates,
+                y: data.open_ask_size,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Ask Size (Resistance)',
+                line: { color: '#F44336', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(244, 67, 54, 0.2)'
+            };
+
+            const priceTrace4 = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: 'rgba(255, 193, 7, 0.8)', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            Plotly.newPlot('imbalance-chart', [bidSizeTrace, askSizeTrace, priceTrace4], {
+                title: 'Order Book Imbalance (Large Bid = Accumulation)',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { title: 'Time', gridcolor: '#e6e6e6' },
+                yaxis: { title: 'Size (Shares)', gridcolor: '#e6e6e6' },
+                yaxis2: { title: 'Price', overlaying: 'y', side: 'right', showgrid: false },
+                margin: { t: 50, r: 70, b: 50, l: 70 },
+                hovermode: 'x unified'
+            }, {responsive: true});
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initControls();
+            loadAccumulationData();
+        });
+    </script>
+</body>
+</html>

@@ -5,27 +5,116 @@
   <title>TradingView DuckDB Viewer</title>
   <script src="https://s3.tradingview.com/tv.js"></script>
   <style>
-    html, body { margin: 0; height: 100%; background: #0e1117; }
-    #chart_container { width: 100%; height: calc(100vh - 60px); }
-    .nav { position: fixed; top: 0; left: 0; right: 0; background: rgba(14, 17, 23, 0.9); padding: 15px 20px; z-index: 1000; backdrop-filter: blur(10px); }
-    .nav a { color: #00d4aa; text-decoration: none; margin-right: 20px; padding: 8px 15px; background: rgba(42, 42, 42, 0.8); border-radius: 4px; font-size: 14px; }
-    .nav a:hover { background: rgba(58, 58, 58, 0.8); }
-    #chart_container { margin-top: 60px; }
+    html, body { margin: 0; height: 100%; background: #0e1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #chart_container { width: 100%; height: calc(100vh - 70px); margin-top: 70px; }
+    
+    .nav { 
+      position: fixed; top: 0; left: 0; right: 0; 
+      background: rgba(14, 17, 23, 0.95); 
+      padding: 12px 20px; 
+      z-index: 1000; 
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    
+    .nav-tabs { display: flex; gap: 8px; }
+    .nav-button { 
+      color: #fff; 
+      background: #2a2a2a; 
+      border: none; 
+      padding: 8px 14px; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .nav-button:hover { background: #3a3a3a; }
+    .nav-button.active { background: #00d4aa; color: #000; }
+    
+    .controls { 
+      display: flex; 
+      align-items: center; 
+      gap: 12px; 
+      margin-left: auto;
+    }
+    
+    .ticker-select, .date-display {
+      background: #1a1a2e;
+      border: 1px solid #333;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .ticker-select { min-width: 120px; cursor: pointer; }
+    .ticker-select:focus { outline: none; border-color: #00d4aa; }
+    
+    .date-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .date-arrow {
+      background: #2a2a2a;
+      border: none;
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .date-arrow:hover { background: #00d4aa; color: #000; }
+    .date-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+    
+    .date-display {
+      min-width: 100px;
+      text-align: center;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
-        <div class="nav-tabs">
-        <button onclick="window.location.href='/'" class="nav-button active">Chart</button>
-        <button onclick="window.location.href='/spread?symbol=AAPL'" class="nav-button">Spread Analysis</button>
-        <button onclick="window.location.href='/vwap?symbol=AAPL'" class="nav-button" style="background: #4CAF50;">VWAP Analysis</button>
-        <button onclick="window.location.href='/volume?symbol=AAPL'" class="nav-button" style="background: #FF9800;">Volume Analysis</button>
-        <button onclick="window.location.href='/liquidity?symbol=AAPL'" class="nav-button" style="background: #9C27B0;">Liquidity Analysis</button>
-        <button onclick="window.location.href='/flow?symbol=AAPL'" class="nav-button" style="background: #00BCD4;">Order Flow</button>
+  <div class="nav">
+    <div class="nav-tabs">
+      <button onclick="navigateTo('/')" class="nav-button active">Chart</button>
+      <button onclick="navigateTo('/spread')" class="nav-button">Spread</button>
+      <button onclick="navigateTo('/vwap')" class="nav-button" style="background: #4CAF50;">VWAP</button>
+      <button onclick="navigateTo('/volume')" class="nav-button" style="background: #FF9800;">Volume</button>
+      <button onclick="navigateTo('/liquidity')" class="nav-button" style="background: #9C27B0;">Liquidity</button>
+      <button onclick="navigateTo('/flow')" class="nav-button" style="background: #00BCD4;">Flow</button>
+      <button onclick="navigateTo('/accumulation')" class="nav-button" style="background: #E91E63;">Accumulation</button>
+      <button onclick="navigateTo('/delta')" class="nav-button" style="background: #E91E63;">Delta</button>
+      <button onclick="navigateTo('/signal')" class="nav-button" style="background: #FF5722;">Signal</button>
+      <button onclick="navigateTo('/documentation')" class="nav-button" style="background: #607D8B;">Docs</button>
+    </div>
+    
+    <div class="controls">
+      <select id="tickerSelect" class="ticker-select" onchange="changeTicker()">
+        <option value="">Loading...</option>
+      </select>
+      
+      <div class="date-nav">
+        <button id="prevDate" class="date-arrow" onclick="changeDate(-1)" title="Previous Day">◀</button>
+        <div id="currentDate" class="date-display">Loading...</div>
+        <button id="nextDate" class="date-arrow" onclick="changeDate(1)" title="Next Day">▶</button>
       </div>
+    </div>
+  </div>
+  
   <div id="chart_container"></div>
   
   <!-- Spread Info Panel -->
-  <div id="spread-info" style="position: absolute; top: 80px; right: 20px; background: rgba(0,0,0,0.9); color: #fff; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 13px; z-index: 1000; border: 1px solid #333;">
+  <div id="spread-info" style="position: absolute; top: 90px; right: 20px; background: rgba(0,0,0,0.9); color: #fff; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 13px; z-index: 1000; border: 1px solid #333;">
     <div style="color: #00d4aa; font-weight: bold; margin-bottom: 8px;">📊 Live Spread Data</div>
     <div id="min-spread" style="color: #00FF88;">Min: Loading...</div>
     <div id="max-spread" style="color: #FF4444;">Max: Loading...</div>
@@ -36,255 +125,206 @@
   </div>
 
   <script>
-    const symbol = "{{ symbol }}";
+    let currentSymbol = "{{ symbol }}";
+    let availableDates = [];
+    let currentDateIndex = 0;
+    let widget = null;
 
-    const widget = new TradingView.widget({
-      container_id: "chart_container",
-      autosize: true,
-      symbol: symbol,
-      interval: "1",
-      theme: "dark",
-      datafeed: {
-        onReady: cb => cb({ supports_time: true }),
-        resolveSymbol: (symbolName, onSymbolResolvedCallback) => {
-          // Handle spread overlay symbols
-          if (symbolName.includes('_SPREAD_')) {
+    // Format date from YYYYMMDD to readable format
+    function formatDate(dateInt) {
+      const str = String(dateInt);
+      const year = str.substring(0, 4);
+      const month = str.substring(4, 6);
+      const day = str.substring(6, 8);
+      return `${month}/${day}/${year}`;
+    }
+
+    // Navigate to a page with current symbol and date
+    function navigateTo(path) {
+      const date = availableDates[currentDateIndex];
+      const url = `${path}?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+      window.location.href = url;
+    }
+
+    // Load available tickers
+    async function loadTickers() {
+      try {
+        const response = await fetch('/api/symbols');
+        const tickers = await response.json();
+        const select = document.getElementById('tickerSelect');
+        select.innerHTML = tickers.map(t => 
+          `<option value="${t}" ${t === currentSymbol ? 'selected' : ''}>${t}</option>`
+        ).join('');
+      } catch (error) {
+        console.error('Error loading tickers:', error);
+      }
+    }
+
+    // Load available dates for current ticker
+    async function loadDates() {
+      try {
+        const response = await fetch(`/api/dates?symbol=${currentSymbol}`);
+        const data = await response.json();
+        availableDates = data.dates || [];
+        currentDateIndex = 0; // Start with most recent date
+        updateDateDisplay();
+      } catch (error) {
+        console.error('Error loading dates:', error);
+      }
+    }
+
+    // Update date display and arrow states
+    function updateDateDisplay() {
+      const dateDisplay = document.getElementById('currentDate');
+      const prevBtn = document.getElementById('prevDate');
+      const nextBtn = document.getElementById('nextDate');
+      
+      if (availableDates.length === 0) {
+        dateDisplay.textContent = 'No data';
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        return;
+      }
+      
+      dateDisplay.textContent = formatDate(availableDates[currentDateIndex]);
+      prevBtn.disabled = currentDateIndex >= availableDates.length - 1;
+      nextBtn.disabled = currentDateIndex <= 0;
+    }
+
+    // Change date (direction: -1 for previous, 1 for next)
+    function changeDate(direction) {
+      const newIndex = currentDateIndex - direction; // Reversed because dates are DESC
+      if (newIndex >= 0 && newIndex < availableDates.length) {
+        currentDateIndex = newIndex;
+        updateDateDisplay();
+        reloadData();
+      }
+    }
+
+    // Change ticker
+    function changeTicker() {
+      const select = document.getElementById('tickerSelect');
+      currentSymbol = select.value;
+      loadDates().then(() => reloadData());
+    }
+
+    // Reload data with current symbol and date
+    function reloadData() {
+      const date = availableDates[currentDateIndex];
+      // Update URL without reload
+      const newUrl = `/?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+      window.history.replaceState({}, '', newUrl);
+      
+      // Reload spread data
+      loadSpreadData();
+      
+      // Recreate chart if needed
+      if (widget) {
+        initChart();
+      }
+    }
+
+    // Load spread data
+    async function loadSpreadData() {
+      const date = availableDates[currentDateIndex];
+      const url = `/api/spread?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+      
+      try {
+        const response = await fetch(url);
+        const spreadData = await response.json();
+        
+        if (spreadData.s === "ok" && spreadData.min_spread && spreadData.min_spread.length > 0) {
+          const minSpread = Math.min(...spreadData.min_spread);
+          const maxSpread = Math.max(...spreadData.max_spread);
+          const avgSpread = (spreadData.min_spread.reduce((a, b) => a + b, 0) + 
+                           spreadData.max_spread.reduce((a, b) => a + b, 0)) / 
+                          (spreadData.min_spread.length * 2);
+          
+          document.getElementById('min-spread').textContent = `Min: $${minSpread.toFixed(4)}`;
+          document.getElementById('max-spread').textContent = `Max: $${maxSpread.toFixed(4)}`;
+          document.getElementById('avg-spread').textContent = `Avg: $${avgSpread.toFixed(4)}`;
+        }
+      } catch (error) {
+        console.error('Error loading spread data:', error);
+      }
+    }
+
+    // Initialize chart
+    function initChart() {
+      const container = document.getElementById('chart_container');
+      container.innerHTML = '';
+      
+      widget = new TradingView.widget({
+        container_id: "chart_container",
+        autosize: true,
+        symbol: currentSymbol,
+        interval: "1",
+        theme: "dark",
+        datafeed: {
+          onReady: cb => cb({ supports_time: true }),
+          resolveSymbol: (symbolName, onSymbolResolvedCallback) => {
             onSymbolResolvedCallback({
               name: symbolName,
               ticker: symbolName,
-              type: "line",
+              type: "stock",
               session: "24x7",
               timezone: "Etc/UTC",
-              pricescale: 10000,
+              pricescale: 100,
               has_intraday: true,
-              has_no_volume: true,
+              has_no_volume: false,
             });
-            return;
-          }
-          
-          // Regular stock symbol
-          onSymbolResolvedCallback({
-            name: symbolName,
-            ticker: symbolName,
-            type: "stock",
-            session: "24x7",
-            timezone: "Etc/UTC",
-            pricescale: 100,
-            has_intraday: true,
-            has_no_volume: false,
-          });
-        },
-        getBars: async (symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) => {
-          const from = periodParams.from;
-          const to = periodParams.to;
-          
-          // Handle different symbols for overlays
-          if (symbolInfo.name.includes('_SPREAD_')) {
-            // This is a spread overlay request
-            const baseSymbol = symbolInfo.name.split('_SPREAD_')[0];
-            const spreadType = symbolInfo.name.split('_SPREAD_')[1]; // MIN or MAX
+          },
+          getBars: async (symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) => {
+            const date = availableDates[currentDateIndex];
+            const url = `/api/history?symbol=${symbolInfo.name}&resolution=${resolution}${date ? '&date=' + date : ''}`;
             
-            const spreadResponse = await fetch(`/api/spread?symbol=${baseSymbol}`);
-            const spreadData = await spreadResponse.json();
-            
-            if (spreadData.s !== "ok") { 
-              onHistoryCallback([], { noData: true }); 
-              return; 
-            }
-            
-            const spreadBars = spreadData.t.map((t, i) => {
-              const spreadValue = spreadType === 'MIN' ? spreadData.min_spread[i] : spreadData.max_spread[i];
-              return {
-                time: t * 1000,
-                open: spreadValue,
-                high: spreadValue,
-                low: spreadValue,
-                close: spreadValue,
-                volume: 0,
-              };
-            });
-            
-            onHistoryCallback(spreadBars, { noData: false });
-            return;
-          }
-          
-          // Handle VWAP and other indicators
-          if (symbolInfo.name.includes('_VWAP') || symbolInfo.name.includes('_TRADES')) {
-            const baseSymbol = symbolInfo.name.split('_')[0];
-            const indicatorType = symbolInfo.name.split('_')[1]; // VWAP, TRADES, etc.
-            
-            const indicatorResponse = await fetch(`/api/indicators?symbol=${baseSymbol}`);
-            const indicatorData = await indicatorResponse.json();
-            
-            if (indicatorData.s !== "ok") { 
-              onHistoryCallback([], { noData: true }); 
-              return; 
-            }
-            
-            let indicatorBars;
-            if (indicatorType === 'VWAP') {
-              indicatorBars = indicatorData.t.map((t, i) => ({
-                time: t * 1000,
-                open: indicatorData.vwap[i],
-                high: indicatorData.vwap[i],
-                low: indicatorData.vwap[i],
-                close: indicatorData.vwap[i],
-                volume: 0,
-              }));
-            } else if (indicatorType === 'TRADES') {
-              indicatorBars = indicatorData.t.map((t, i) => ({
-                time: t * 1000,
-                open: indicatorData.total_trades[i],
-                high: indicatorData.total_trades[i],
-                low: indicatorData.total_trades[i],
-                close: indicatorData.total_trades[i],
-                volume: 0,
-              }));
-            }
-            
-            onHistoryCallback(indicatorBars, { noData: false });
-            return;
-          }
-          
-          // Regular price data
-          const url = `/api/history?symbol=${symbolInfo.name}&resolution=${resolution}&from_=${from}&to=${to}`;
-          const response = await fetch(url);
-          const data = await response.json();
-          if (data.s !== "ok") { onHistoryCallback([], { noData: true }); return; }
-          const bars = data.t.map((t, i) => ({
-            time: t * 1000,
-            open: data.o[i],
-            high: data.h[i],
-            low: data.l[i],
-            close: data.c[i],
-            volume: data.v[i],
-          }));
-          onHistoryCallback(bars, { noData: false });
-        },
-      },
-      studies_overrides: {
-        "volume.volume.color.0": "#00FFFF",
-        "volume.volume.color.1": "#0000FF",
-      },
-      overrides: {
-        "paneProperties.background": "#131722",
-        "paneProperties.vertGridProperties.color": "#363c4e",
-        "paneProperties.horzGridProperties.color": "#363c4e",
-        "symbolWatermarkProperties.transparency": 90,
-        "scalesProperties.textColor": "#AAA",
-      },
-      loading_screen: { backgroundColor: "#131722" },
-      onChartReady: () => {
-        console.log("📈 TradingView chart is ready!");
-      }
-    });
-
-    // Load spread data immediately, don't wait for TradingView
-    setTimeout(async () => {
-          // Update panel to show loading status
-          document.getElementById('min-spread').textContent = 'Min: Fetching...';
-          document.getElementById('max-spread').textContent = 'Max: Fetching...';
-          document.getElementById('avg-spread').textContent = 'Avg: Fetching...';
-          
-          try {
-            console.log(`🔄 Loading spread data for ${symbol}...`);
-            
-            const spreadResponse = await fetch(`/api/spread?symbol=${symbol}`, {
-              method: 'GET',
-              headers: {'Accept': 'application/json'},
-              timeout: 5000
-            });
-            console.log('✅ Spread response status:', spreadResponse.status);
-            
-            if (!spreadResponse.ok) {
-              throw new Error(`HTTP ${spreadResponse.status}: ${spreadResponse.statusText}`);
-            }
-            
-            const spreadData = await spreadResponse.json();
-            console.log('Spread data received:', spreadData);
-            
-            if (spreadData.s === "ok") {
-              // Calculate statistics
-              const minSpread = Math.min(...spreadData.min_spread);
-              const maxSpread = Math.max(...spreadData.max_spread);
-              const avgMinSpread = spreadData.min_spread.reduce((a, b) => a + b, 0) / spreadData.min_spread.length;
-              const avgMaxSpread = spreadData.max_spread.reduce((a, b) => a + b, 0) / spreadData.max_spread.length;
-              const avgSpread = (avgMinSpread + avgMaxSpread) / 2;
-              
-              // Update info panel
-              document.getElementById('min-spread').textContent = `Min: $${minSpread.toFixed(4)}`;
-              document.getElementById('max-spread').textContent = `Max: $${maxSpread.toFixed(4)}`;
-              document.getElementById('avg-spread').textContent = `Avg: $${avgSpread.toFixed(4)}`;
-              
-              console.log("📊 Spread Statistics:");
-              console.log(`   Min Spread: $${minSpread.toFixed(4)}`);
-              console.log(`   Max Spread: $${maxSpread.toFixed(4)}`);
-              console.log(`   Avg Spread: $${avgSpread.toFixed(4)}`);
-              
-              // Try to add overlays (may not work in free version)
-              try {
-                widget.chart().createStudy('Compare', false, false, [`${symbol}_SPREAD_MIN`]);
-                widget.chart().createStudy('Compare', false, false, [`${symbol}_SPREAD_MAX`]);
-                console.log("✅ Spread overlays attempted");
-              } catch (overlayError) {
-                console.log("ℹ️ Spread overlays not supported in this TradingView version");
-                console.log("💡 Use the 'Spread Analysis' tab for detailed charts");
+            try {
+              const response = await fetch(url);
+              const data = await response.json();
+              if (data.s !== "ok" || !data.t) { 
+                onHistoryCallback([], { noData: true }); 
+                return; 
               }
-              
-              // Also try VWAP and trades overlays
-              try {
-                widget.chart().createStudy('Compare', false, false, [`${symbol}_VWAP`]);
-                widget.chart().createStudy('Compare', false, false, [`${symbol}_TRADES`]);
-                console.log("✅ VWAP and Trades overlays attempted");
-              } catch (overlayError) {
-                console.log("ℹ️ Additional overlays not supported in this TradingView version");
-              }
-              
+              const bars = data.t.map((t, i) => ({
+                time: t * 1000,
+                open: data.o[i],
+                high: data.h[i],
+                low: data.l[i],
+                close: data.c[i],
+                volume: data.v[i],
+              }));
+              onHistoryCallback(bars, { noData: false });
+            } catch (error) {
+              console.error('Error fetching bars:', error);
+              onHistoryCallback([], { noData: true });
             }
-          } catch (error) {
-            console.error("❌ Error loading spread data:", error);
-            document.getElementById('spread-info').innerHTML = `
-              <div style="color: #ff4444;">❌ Error Loading Spread</div>
-              <div style="font-size: 10px; color: #888;">${error.message}</div>
-              <div style="font-size: 10px; color: #888; margin-top: 4px;">
-                <a href="/spread?symbol=${symbol}" style="color: #00d4aa;">View Spread Page →</a>
-              </div>
-            `;
-          }
-        }, 1000); // Reduced from 2000ms to 1000ms
-
-    // Manual overlay functions
-    function addVWAPOverlay() {
-      try {
-        const symbol = 'AAPL'; // You can make this dynamic
-        widget.chart().createStudy('Compare', false, false, [`${symbol}_VWAP`]);
-        console.log("✅ VWAP overlay added manually");
-      } catch (error) {
-        console.log("ℹ️ VWAP overlay not supported in free TradingView version");
-        console.log("❌ VWAP overlay error:", error);
-      }
-    }
-    
-    function addTradesOverlay() {
-      try {
-        const symbol = 'AAPL'; // You can make this dynamic  
-        widget.chart().createStudy('Compare', false, false, [`${symbol}_TRADES`]);
-        console.log("✅ Trades overlay added manually");
-      } catch (error) {
-        console.log("ℹ️ Trades overlay not supported in free TradingView version");
-        console.log("❌ Trades overlay error:", error);
-      }
+          },
+          subscribeBars: () => {},
+          unsubscribeBars: () => {},
+        },
+        overrides: {
+          "paneProperties.background": "#131722",
+          "paneProperties.vertGridProperties.color": "#363c4e",
+          "paneProperties.horzGridProperties.color": "#363c4e",
+          "scalesProperties.textColor": "#AAA",
+        },
+        loading_screen: { backgroundColor: "#131722" },
+      });
     }
 
     // Toggle spread info panel
     function toggleSpreadInfo() {
       const panel = document.getElementById('spread-info');
-      if (panel.style.display === 'none') {
-        panel.style.display = 'block';
-      } else {
-        panel.style.display = 'none';
-      }
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadTickers();
+      await loadDates();
+      initChart();
+      loadSpreadData();
+    });
   </script>
 </body>
 </html>

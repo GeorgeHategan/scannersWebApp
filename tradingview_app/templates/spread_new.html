@@ -4,30 +4,73 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spread Analysis - Scanner WebApp</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         body { 
-            font-family: Arial, sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0; 
             padding: 20px; 
+            padding-top: 80px;
             background: #0f0f23; 
             color: white; 
         }
-        .nav-tabs {
-            margin-bottom: 20px;
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 35, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
             border-bottom: 1px solid #333;
         }
+        .nav-tabs { display: flex; gap: 8px; }
         .nav-button {
             background: #1a1a3e;
             color: #00d4aa;
             border: none;
-            padding: 10px 20px;
-            margin-right: 5px;
+            padding: 8px 14px;
             cursor: pointer;
-            border-radius: 5px 5px 0 0;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
         }
         .nav-button:hover { background: #2a2a4e; }
         .nav-button.active { background: #00d4aa; color: #0f0f23; }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ticker-select, .date-display {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .ticker-select { min-width: 100px; cursor: pointer; }
+        .ticker-select:focus { outline: none; border-color: #00d4aa; }
+        .date-nav { display: flex; align-items: center; gap: 6px; }
+        .date-arrow {
+            background: #2a2a4e;
+            border: none;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .date-arrow:hover { background: #00d4aa; color: #000; }
+        .date-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+        .date-display { min-width: 90px; text-align: center; font-weight: 500; }
         .chart-container { 
             background: white; 
             border-radius: 8px; 
@@ -56,19 +99,40 @@
             color: #888;
             margin-top: 5px;
         }
+        h1 { margin-top: 0; }
     </style>
 </head>
 <body>
-    <h1>📊 Bid-Ask Spread Analysis</h1>
-    
-    <div class="nav-tabs">
-        <button onclick="window.location.href='/'" class="nav-button">Chart</button>
-        <button class="nav-button active">Spread Analysis</button>
-        <button onclick="window.location.href='/vwap?symbol=AAPL'" class="nav-button">VWAP Analysis</button>
-        <button onclick="window.location.href='/volume?symbol=AAPL'" class="nav-button">Volume Analysis</button>
-        <button onclick="window.location.href='/liquidity?symbol=AAPL'" class="nav-button">Liquidity Analysis</button>
-        <button onclick="window.location.href='/flow?symbol=AAPL'" class="nav-button">Order Flow</button>
+    <div class="header">
+        <div class="nav-tabs">
+            <button onclick="navigateTo('/')" class="nav-button">Chart</button>
+            <button class="nav-button active">Spread</button>
+            <button onclick="navigateTo('/vwap')" class="nav-button">VWAP</button>
+            <button onclick="navigateTo('/volume')" class="nav-button">Volume</button>
+            <button onclick="navigateTo('/liquidity')" class="nav-button">Liquidity</button>
+            <button onclick="navigateTo('/flow')" class="nav-button">Flow</button>
+            <button onclick="navigateTo('/accumulation')" class="nav-button">Accumulation</button>
+            <button onclick="navigateTo('/delta')" class="nav-button">Delta</button>
+            <button onclick="navigateTo('/signal')" class="nav-button">Signal</button>
+            <button onclick="navigateTo('/documentation')" class="nav-button">Docs</button>
+        </div>
+        <div class="controls">
+            <label style="display: flex; align-items: center; gap: 6px; color: #888; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="showPrice" onchange="togglePriceOverlay()" style="width: 16px; height: 16px; cursor: pointer;">
+                Price Overlay
+            </label>
+            <select id="tickerSelect" class="ticker-select" onchange="changeTicker()">
+                <option value="">Loading...</option>
+            </select>
+            <div class="date-nav">
+                <button id="prevDate" class="date-arrow" onclick="changeDate(-1)">◀</button>
+                <div id="currentDate" class="date-display">Loading...</div>
+                <button id="nextDate" class="date-arrow" onclick="changeDate(1)">▶</button>
+            </div>
+        </div>
     </div>
+
+    <h1>📊 Bid-Ask Spread Analysis</h1>
 
     <div class="stats-grid" id="stats-container">
         <div class="stat-card">
@@ -101,10 +165,20 @@
     <div class="chart-container" id="spread-distribution-chart"></div>
 
     <script>
+        let lastData = null;
+
+        function togglePriceOverlay() {
+            if (lastData) {
+                renderCharts(lastData);
+            }
+        }
+
         async function loadSpreadData() {
             try {
                 console.log('🔄 Loading spread data...');
-                const response = await fetch('/api/spread?symbol={{ symbol }}');
+                const date = availableDates[currentDateIndex];
+                const url = `/api/spread?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 if (data.s !== "ok") {
@@ -154,81 +228,9 @@
                 document.getElementById('mean-reversion').textContent = `${meanReversion.toFixed(1)}%`;
                 document.getElementById('volatility-regime').textContent = volRegime;
 
-                // Create time series chart
-                const minSpreadTrace = {
-                    x: dates,
-                    y: data.min_spread,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Min Spread',
-                    line: { color: '#4CAF50', width: 2 },
-                    fill: 'tozeroy',
-                    fillcolor: 'rgba(76, 175, 80, 0.1)'
-                };
-
-                const maxSpreadTrace = {
-                    x: dates,
-                    y: data.max_spread,
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Max Spread',
-                    line: { color: '#FF5722', width: 2 }
-                };
-
-                const avgSpreadTrace = {
-                    x: dates,
-                    y: data.min_spread.map((min, i) => (min + data.max_spread[i]) / 2),
-                    type: 'scatter',
-                    mode: 'lines',
-                    name: 'Average Spread',
-                    line: { color: '#2196F3', width: 2, dash: 'dash' }
-                };
-
-                const timeLayout = {
-                    title: 'Bid-Ask Spread Over Time',
-                    paper_bgcolor: 'white',
-                    plot_bgcolor: 'white',
-                    font: { color: 'black' },
-                    xaxis: { 
-                        title: 'Time',
-                        gridcolor: '#e6e6e6'
-                    },
-                    yaxis: { 
-                        title: 'Spread ($)',
-                        gridcolor: '#e6e6e6'
-                    },
-                    margin: { t: 50, r: 50, b: 50, l: 50 },
-                    hovermode: 'x unified'
-                };
-
-                Plotly.newPlot('spread-time-chart', [minSpreadTrace, maxSpreadTrace, avgSpreadTrace], timeLayout, {responsive: true});
-
-                // Create distribution histogram
-                const spreadDistTrace = {
-                    x: allSpreads,
-                    type: 'histogram',
-                    name: 'Spread Distribution',
-                    marker: { color: '#00d4aa', opacity: 0.7 },
-                    nbinsx: 30
-                };
-
-                const distLayout = {
-                    title: 'Spread Distribution',
-                    paper_bgcolor: 'white',
-                    plot_bgcolor: 'white',
-                    font: { color: 'black' },
-                    xaxis: { 
-                        title: 'Spread ($)',
-                        gridcolor: '#e6e6e6'
-                    },
-                    yaxis: { 
-                        title: 'Frequency',
-                        gridcolor: '#e6e6e6'
-                    },
-                    margin: { t: 50, r: 50, b: 50, l: 50 }
-                };
-
-                Plotly.newPlot('spread-distribution-chart', [spreadDistTrace], distLayout, {responsive: true});
+                // Store data and render charts
+                lastData = { dates, data, allSpreads };
+                renderCharts(lastData);
 
                 console.log('✅ Spread analysis loaded successfully');
                 console.log(`📊 Stats: Min=$${minSpread.toFixed(4)}, Max=$${maxSpread.toFixed(4)}, Avg=$${avgSpread.toFixed(4)}, Vol=$${spreadVolatility.toFixed(4)}`);
@@ -244,8 +246,178 @@
             }
         }
 
+        function renderCharts({ dates, data, allSpreads }) {
+            const showPrice = document.getElementById('showPrice').checked;
+
+            // Create time series chart
+            const minSpreadTrace = {
+                x: dates,
+                y: data.min_spread,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Min Spread',
+                line: { color: '#4CAF50', width: 2 },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(76, 175, 80, 0.1)'
+            };
+
+            const maxSpreadTrace = {
+                x: dates,
+                y: data.max_spread,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Max Spread',
+                line: { color: '#FF5722', width: 2 }
+            };
+
+            const avgSpreadTrace = {
+                x: dates,
+                y: data.min_spread.map((min, i) => (min + data.max_spread[i]) / 2),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Average Spread',
+                line: { color: '#2196F3', width: 2, dash: 'dash' }
+            };
+
+            const priceTrace1 = {
+                x: dates,
+                y: data.last_price,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Price',
+                line: { color: '#FFC107', width: 2 },
+                yaxis: 'y2',
+                visible: showPrice
+            };
+
+            const timeLayout = {
+                title: 'Bid-Ask Spread Over Time',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { 
+                    title: 'Time',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis: { 
+                    title: 'Spread ($)',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis2: {
+                    title: 'Price',
+                    overlaying: 'y',
+                    side: 'right',
+                    showgrid: false
+                },
+                margin: { t: 50, r: 70, b: 50, l: 50 },
+                hovermode: 'x unified'
+            };
+
+            Plotly.newPlot('spread-time-chart', [minSpreadTrace, maxSpreadTrace, avgSpreadTrace, priceTrace1], timeLayout, {responsive: true});
+
+            // Create distribution histogram
+            const spreadDistTrace = {
+                x: allSpreads,
+                type: 'histogram',
+                name: 'Spread Distribution',
+                marker: { color: '#00d4aa', opacity: 0.7 },
+                nbinsx: 30
+            };
+
+            const distLayout = {
+                title: 'Spread Distribution',
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                font: { color: 'black' },
+                xaxis: { 
+                    title: 'Spread ($)',
+                    gridcolor: '#e6e6e6'
+                },
+                yaxis: { 
+                    title: 'Frequency',
+                    gridcolor: '#e6e6e6'
+                },
+                margin: { t: 50, r: 50, b: 50, l: 50 }
+            };
+
+            Plotly.newPlot('spread-distribution-chart', [spreadDistTrace], distLayout, {responsive: true});
+        }
+
         // Load data when page loads
-        window.addEventListener('DOMContentLoaded', loadSpreadData);
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initControls();
+            loadSpreadData();
+        });
+
+        let currentSymbol = "{{ symbol }}";
+        let availableDates = [];
+        let currentDateIndex = 0;
+
+        function formatDate(dateInt) {
+            const str = String(dateInt);
+            return `${str.substring(4,6)}/${str.substring(6,8)}/${str.substring(0,4)}`;
+        }
+
+        function navigateTo(path) {
+            const date = availableDates[currentDateIndex];
+            window.location.href = `${path}?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+        }
+
+        async function initControls() {
+            const tickersRes = await fetch('/api/symbols');
+            const tickers = await tickersRes.json();
+            const select = document.getElementById('tickerSelect');
+            select.innerHTML = tickers.map(t => 
+                `<option value="${t}" ${t === currentSymbol ? 'selected' : ''}>${t}</option>`
+            ).join('');
+            
+            const datesRes = await fetch(`/api/dates?symbol=${currentSymbol}`);
+            const datesData = await datesRes.json();
+            availableDates = datesData.dates || [];
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlDate = urlParams.get('date');
+            if (urlDate) {
+                const idx = availableDates.indexOf(parseInt(urlDate));
+                if (idx >= 0) currentDateIndex = idx;
+            }
+            updateDateDisplay();
+        }
+
+        function updateDateDisplay() {
+            const dateDisplay = document.getElementById('currentDate');
+            const prevBtn = document.getElementById('prevDate');
+            const nextBtn = document.getElementById('nextDate');
+            if (availableDates.length === 0) {
+                dateDisplay.textContent = 'No data';
+                prevBtn.disabled = nextBtn.disabled = true;
+                return;
+            }
+            dateDisplay.textContent = formatDate(availableDates[currentDateIndex]);
+            prevBtn.disabled = currentDateIndex >= availableDates.length - 1;
+            nextBtn.disabled = currentDateIndex <= 0;
+        }
+
+        function changeDate(dir) {
+            const newIdx = currentDateIndex - dir;
+            if (newIdx >= 0 && newIdx < availableDates.length) {
+                currentDateIndex = newIdx;
+                updateDateDisplay();
+                loadSpreadData();
+            }
+        }
+
+        function changeTicker() {
+            currentSymbol = document.getElementById('tickerSelect').value;
+            fetch(`/api/dates?symbol=${currentSymbol}`)
+                .then(r => r.json())
+                .then(data => {
+                    availableDates = data.dates || [];
+                    currentDateIndex = 0;
+                    updateDateDisplay();
+                    loadSpreadData();
+                });
+        }
     </script>
 </body>
 </html>
