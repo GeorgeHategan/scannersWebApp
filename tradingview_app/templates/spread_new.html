@@ -46,6 +46,17 @@
             align-items: center;
             gap: 12px;
         }
+        .timeframe-select {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 90px;
+            cursor: pointer;
+        }
+        .timeframe-select:focus { outline: none; border-color: #00d4aa; }
         .ticker-select, .date-display {
             background: #1a1a2e;
             border: 1px solid #333;
@@ -105,7 +116,6 @@
 <body>
     <div class="header">
         <div class="nav-tabs">
-            <button onclick="navigateTo('/')" class="nav-button">Chart</button>
             <button class="nav-button active">Spread</button>
             <button onclick="navigateTo('/vwap')" class="nav-button">VWAP</button>
             <button onclick="navigateTo('/volume')" class="nav-button">Volume</button>
@@ -115,8 +125,13 @@
             <button onclick="navigateTo('/delta')" class="nav-button">Delta</button>
             <button onclick="navigateTo('/signal')" class="nav-button">Signal</button>
             <button onclick="navigateTo('/documentation')" class="nav-button">Docs</button>
+            <button onclick="navigateTo('/data')" class="nav-button">Data Table</button>
         </div>
         <div class="controls">
+            <select id="timeframeSelect" class="timeframe-select" onchange="changeTimeframe()">
+                <option value="1min">1-Min</option>
+                <option value="daily">Daily</option>
+            </select>
             <label style="display: flex; align-items: center; gap: 6px; color: #888; font-size: 13px; cursor: pointer;">
                 <input type="checkbox" id="showPrice" onchange="togglePriceOverlay()" style="width: 16px; height: 16px; cursor: pointer;">
                 Price Overlay
@@ -166,6 +181,14 @@
 
     <script>
         let lastData = null;
+        let currentTimeframe = "{{ timeframe }}";
+
+        function changeTimeframe() {
+            const newTimeframe = document.getElementById('timeframeSelect').value;
+            const url = new URL(window.location);
+            url.searchParams.set('timeframe', newTimeframe);
+            window.location.href = url.toString();
+        }
 
         function togglePriceOverlay() {
             if (lastData) {
@@ -174,10 +197,10 @@
         }
 
         async function loadSpreadData() {
-            try {
+            try:
                 console.log('🔄 Loading spread data...');
                 const date = availableDates[currentDateIndex];
-                const url = `/api/spread?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+                const url = `/api/spread?symbol=${currentSymbol}${date ? '&date=' + date : ''}&timeframe=${currentTimeframe}`;
                 const response = await fetch(url);
                 const data = await response.json();
                 
@@ -345,6 +368,10 @@
 
         // Load data when page loads
         window.addEventListener('DOMContentLoaded', async () => {
+            // Set timeframe selector to current value
+            const selector = document.getElementById('timeframeSelect');
+            if (selector) selector.value = currentTimeframe;
+            
             await initControls();
             loadSpreadData();
         });

@@ -86,7 +86,6 @@
 <body>
   <div class="nav">
     <div class="nav-tabs">
-      <button onclick="navigateTo('/')" class="nav-button active">Chart</button>
       <button onclick="navigateTo('/spread')" class="nav-button">Spread</button>
       <button onclick="navigateTo('/vwap')" class="nav-button" style="background: #4CAF50;">VWAP</button>
       <button onclick="navigateTo('/volume')" class="nav-button" style="background: #FF9800;">Volume</button>
@@ -96,9 +95,15 @@
       <button onclick="navigateTo('/delta')" class="nav-button" style="background: #E91E63;">Delta</button>
       <button onclick="navigateTo('/signal')" class="nav-button" style="background: #FF5722;">Signal</button>
       <button onclick="navigateTo('/documentation')" class="nav-button" style="background: #607D8B;">Docs</button>
+      <button onclick="navigateTo('/data')" class="nav-button" style="background: #FFC107;">Data Table</button>
     </div>
     
     <div class="controls">
+      <select id="timeframeSelect" class="ticker-select" onchange="changeTimeframe()" style="min-width: 90px;">
+        <option value="1min">1-Min</option>
+        <option value="daily">Daily</option>
+      </select>
+      
       <select id="tickerSelect" class="ticker-select" onchange="changeTicker()">
         <option value="">Loading...</option>
       </select>
@@ -126,9 +131,18 @@
 
   <script>
     let currentSymbol = "{{ symbol }}";
+    let currentTimeframe = "{{ timeframe }}";
     let availableDates = [];
     let currentDateIndex = 0;
     let widget = null;
+    
+    // Set timeframe selector on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      const timeframeSelect = document.getElementById('timeframeSelect');
+      if (timeframeSelect && currentTimeframe) {
+        timeframeSelect.value = currentTimeframe;
+      }
+    });
 
     // Format date from YYYYMMDD to readable format
     function formatDate(dateInt) {
@@ -207,6 +221,13 @@
       currentSymbol = select.value;
       loadDates().then(() => reloadData());
     }
+    
+    // Change timeframe
+    function changeTimeframe() {
+      const timeframe = document.getElementById('timeframeSelect').value;
+      const date = availableDates[currentDateIndex];
+      window.location.href = `/?symbol=${currentSymbol}${date ? '&date=' + date : ''}&timeframe=${timeframe}`;
+    }
 
     // Reload data with current symbol and date
     function reloadData() {
@@ -227,7 +248,8 @@
     // Load spread data
     async function loadSpreadData() {
       const date = availableDates[currentDateIndex];
-      const url = `/api/spread?symbol=${currentSymbol}${date ? '&date=' + date : ''}`;
+      const timeframe = document.getElementById('timeframeSelect')?.value || '1min';
+      const url = `/api/spread?symbol=${currentSymbol}${date ? '&date=' + date : ''}&timeframe=${timeframe}`;
       
       try {
         const response = await fetch(url);

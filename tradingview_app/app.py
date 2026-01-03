@@ -135,6 +135,11 @@ def docs_page(request: Request):
     return templates.TemplateResponse("docs.html", {"request": request})
 
 
+@app.get("/data")
+def data_table_page(request: Request, symbol: str = "AMD", date: int = None):
+    return templates.TemplateResponse("data_table.html", {"request": request, "symbol": symbol, "date": date})
+
+
 # -----------------------------
 # 🔍 Data API for chart
 # -----------------------------
@@ -892,3 +897,60 @@ def get_signal_data(symbol: str, date: int = None):
     except Exception as e:
         print(f"Error in get_signal_data: {e}")
         return {"s": "error", "message": str(e)}
+
+@app.get("/api/raw-data")
+def get_raw_data(symbol: str, date: int = None, limit: int = 100, offset: int = 0):
+    """Get raw data from taq_1min table"""
+    try:
+        con = get_database_connection()
+        if not con:
+            return {"s": "no_data", "data": [], "total": 0}
+        
+        date_filter = f"AND Date = {date}" if date else ""
+        
+        # Get total count
+        count_query = f"""
+            SELECT COUNT(*) FROM taq_1min
+            WHERE Ticker = '{symbol.upper()}' {date_filter}
+        """
+        total = con.execute(count_query).fetchone()[0]
+        
+        # Get data
+        query = f"""
+            SELECT * FROM taq_1min
+            WHERE Ticker = '{symbol.upper()}' {date_filter}
+            ORDER BY Date, TimeBarStart
+            LIMIT {limit} OFFSET {offset}
+        """
+        df = con.execute(query).df()
+        con.close()
+        
+        if df.empty:
+            return {"s": "no_data", "data": [], "total": 0}
+        
+        # Convert to records
+        records = df.to_dict('records')
+        
+        # Convert time objects to strings for JSON serialization
+        import pandas as pd
+        for record in records:
+            for key, value in record.items():
+                if hasattr(value, 'isoformat'):
+                    record[key] = value.isoformat()
+                elif pd.isna(value):
+                    record[key] = None
+        
+        return {
+            "s": "ok",
+            "data": records,
+            "total": total,
+            "columns": list(df.columns),
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        print(f"Error in get_raw_data: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"s": "error", "message": str(e), "data": [], "total": 0}
